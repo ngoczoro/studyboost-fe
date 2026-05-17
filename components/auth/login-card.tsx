@@ -81,22 +81,24 @@ export function LoginCard() {
           required
         />
 
-        <Input
-          id="password"
-          label="Password"
-          type="password"
-          placeholder="••••••••"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          icon={<LockIcon size={16} />}
-          autoComplete="current-password"
-          required
-          rightSlot={
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <Input
+            id="password"
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            icon={<LockIcon size={16} />}
+            autoComplete="current-password"
+            required
+          />
+          <div style={{ textAlign: "right" }}>
             <a href="#forgot" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-primary-600)", textDecoration: "none" }}>
               Forgot password?
             </a>
-          }
-        />
+          </div>
+        </div>
 
         <SegmentedControl
           label="Login As (Demo)"
