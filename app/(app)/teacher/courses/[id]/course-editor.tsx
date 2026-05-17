@@ -57,7 +57,7 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: A
       setForm({
         title: assignment.title,
         description: assignment.description ?? "",
-        due_date: assignment.due_date.slice(0, 16),
+        due_date: assignment.due_date?.slice(0, 16) ?? "",
         max_score: assignment.max_score,
       })
     } else {
@@ -181,8 +181,7 @@ function CourseAssignmentsTab({ courseId, onNew, onEdit }: { courseId: number; o
   const router = useRouter()
   const courseAssignments = allAssignments.filter(a => a.course_id === courseId)
 
-  const remove = (e: React.MouseEvent, a: Assignment) => {
-    e.stopPropagation()
+  const remove = (a: Assignment) => {
     if (!window.confirm(`Delete "${a.title}" and all its submissions?`)) return
     toast("Assignment deleted", "success")
   }
@@ -212,13 +211,13 @@ function CourseAssignmentsTab({ courseId, onNew, onEdit }: { courseId: number; o
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
                     <div style={{ fontSize: 12, color: "var(--color-fg-muted)" }}>Max {a.max_score} pts</div>
                   </td>
-                  <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--color-fg-muted)" }}>{date_(a.due_date)}</td>
+                  <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--color-fg-muted)" }}>{date_(a.due_date ?? "")}</td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
                     <Badge tone={subs.length ? "blue" : "default"}>{subs.length}</Badge>
                   </td>
                   <td style={{ padding: "10px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                     <IconButton onClick={() => onEdit(a)} title="Edit"><EditIcon size={16} /></IconButton>
-                    <IconButton onClick={e => remove(e, a)} title="Delete"><TrashIcon size={16} /></IconButton>
+                    <IconButton onClick={() => remove(a)} title="Delete"><TrashIcon size={16} /></IconButton>
                   </td>
                 </tr>
               )

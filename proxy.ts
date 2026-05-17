@@ -8,7 +8,7 @@ const ROLE_PREFIX: Record<string, string> = {
   student: "/student",
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow public routes and API routes

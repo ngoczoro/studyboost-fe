@@ -5,10 +5,11 @@ import { InputHTMLAttributes, ReactNode, useState } from "react"
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
   icon?: ReactNode
+  rightSlot?: ReactNode
   error?: string
 }
 
-export function Input({ label, icon, error, id, style, ...rest }: InputProps) {
+export function Input({ label, icon, rightSlot, error, id, style, ...rest }: InputProps) {
   const [focused, setFocused] = useState(false)
 
   return (
@@ -40,7 +41,7 @@ export function Input({ label, icon, error, id, style, ...rest }: InputProps) {
             borderRadius: "var(--radius-md)",
             border: `1px solid ${error ? "#dc2626" : focused ? "var(--color-primary-500)" : "var(--color-border)"}`,
             boxShadow: focused && !error ? "0 0 0 3px rgba(34,197,94,0.15)" : undefined,
-            padding: `0 14px 0 ${icon ? "40px" : "14px"}`,
+            padding: `0 ${rightSlot ? "120px" : "14px"} 0 ${icon ? "40px" : "14px"}`,
             fontSize: 15,
             color: "var(--color-fg)",
             background: "var(--color-surface)",
@@ -50,6 +51,15 @@ export function Input({ label, icon, error, id, style, ...rest }: InputProps) {
           }}
           {...rest}
         />
+        {rightSlot && (
+          <span style={{
+            position: "absolute", right: 12, top: "50%",
+            transform: "translateY(-50%)",
+            display: "flex", alignItems: "center",
+          }}>
+            {rightSlot}
+          </span>
+        )}
       </div>
       {error && <span style={{ fontSize: 13, color: "#dc2626" }}>{error}</span>}
     </div>

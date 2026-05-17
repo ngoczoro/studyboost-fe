@@ -9,10 +9,17 @@ interface SegmentedControlProps {
   options: Option[]
   value: string
   onChange: (v: string) => void
+  label?: string
 }
 
-export function SegmentedControl({ options, value, onChange }: SegmentedControlProps) {
+export function SegmentedControl({ options, value, onChange, label }: SegmentedControlProps) {
   return (
+    <div>
+      {label && (
+        <label style={{ fontSize: 14, fontWeight: 500, color: "var(--color-fg)", display: "block", marginBottom: 6 }}>
+          {label}
+        </label>
+      )}
     <div style={{
       display: "grid",
       gridTemplateColumns: `repeat(${options.length}, 1fr)`,
@@ -45,6 +52,7 @@ export function SegmentedControl({ options, value, onChange }: SegmentedControlP
           </button>
         )
       })}
+    </div>
     </div>
   )
 }

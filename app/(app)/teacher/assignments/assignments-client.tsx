@@ -11,10 +11,10 @@ import type { Course } from "@/lib/types"
 interface AssignmentRow {
   id: number
   title: string
-  description: string
+  description?: string
   course_id: number
   courseName: string
-  due_date: string
+  due_date?: string
   max_score: number
   totalSubmissions: number
   gradedCount: number
@@ -40,8 +40,8 @@ function AssignmentEditModal({ open, onClose, assignment }: EditModalProps) {
     if (!assignment) return
     setForm({
       title: assignment.title,
-      description: assignment.description,
-      due_date: assignment.due_date.slice(0, 16),
+      description: assignment.description ?? "",
+      due_date: assignment.due_date?.slice(0, 16) ?? "",
       max_score: String(assignment.max_score),
     })
   }
@@ -117,7 +117,7 @@ export function TeacherAssignmentsClient({ assignments, courses: _courses }: Pro
         title="Assignments"
         subtitle="All assignments across your courses."
         actions={
-          <ButtonSmall variant="ghost" onClick={() => toast("Open the course editor to add an assignment", "yellow")}>
+          <ButtonSmall variant="ghost" onClick={() => toast("Open the course editor to add an assignment", "warning")}>
             <PlusIcon size={16} /> New assignment
           </ButtonSmall>
         }
@@ -136,7 +136,7 @@ export function TeacherAssignmentsClient({ assignments, courses: _courses }: Pro
           </thead>
           <tbody>
             {assignments.map(a => {
-              const overdue = new Date(a.due_date) < new Date()
+              const overdue = a.due_date ? new Date(a.due_date) < new Date() : false
               const allGraded = a.gradedCount === a.totalSubmissions
               return (
                 <tr
@@ -148,7 +148,7 @@ export function TeacherAssignmentsClient({ assignments, courses: _courses }: Pro
                   <td style={{ padding: "14px 16px", color: "var(--color-fg-muted)", fontSize: 13 }}>{a.courseName}</td>
                   <td style={{ padding: "14px 16px", fontSize: 13 }}>
                     <span style={{ color: overdue ? "var(--color-danger, #ef4444)" : "var(--color-fg-muted)" }}>
-                      {date_(a.due_date)}
+                      {date_(a.due_date ?? "")}
                     </span>
                   </td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>

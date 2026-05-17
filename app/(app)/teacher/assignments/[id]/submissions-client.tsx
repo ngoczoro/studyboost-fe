@@ -9,7 +9,7 @@ import { relative } from "@/lib/fmt"
 interface Grade {
   id: number
   score: number
-  feedback: string
+  feedback?: string
   graded_at: string
 }
 
@@ -17,7 +17,7 @@ interface SubmissionRow {
   id: number
   assignment_id: number
   student_id: number
-  content: string
+  content?: string
   submitted_at: string
   is_late: boolean
   student?: { id: number; full_name: string; email: string }
@@ -27,10 +27,10 @@ interface SubmissionRow {
 interface Assignment {
   id: number
   title: string
-  description: string
+  description?: string
   course_id: number
   max_score: number
-  due_date: string
+  due_date?: string
 }
 
 interface Props {

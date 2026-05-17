@@ -180,8 +180,8 @@ export function EmptyState({
 
 /* ── StatCard ───────────────────────────────────── */
 export function StatCard({
-  icon, label, value, trend,
-}: { icon?: ReactNode; label: string; value: string | number; trend?: string }) {
+  icon, label, value, trend, delta, tone,
+}: { icon?: ReactNode; label: string; value: string | number; trend?: string; delta?: number; tone?: string }) {
   return (
     <Card>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -278,7 +278,7 @@ const ToastContext = createContext<(msg: string, type?: ToastType) => void>(() =
 
 let _toastFn: (msg: string, type?: ToastType) => void = () => {}
 
-export function ToastHost({ children }: { children: ReactNode }) {
+export function ToastHost({ children }: { children?: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const idRef = useRef(0)
 
@@ -338,8 +338,9 @@ export function toast(message: string, type: ToastType = "info") {
 
 /* ── PageHeader ─────────────────────────────────── */
 export function PageHeader({
-  title, subtitle, actions,
-}: { title: string; subtitle?: string; actions?: ReactNode }) {
+  title, subtitle, description, actions,
+}: { title: string; subtitle?: string; description?: string; actions?: ReactNode }) {
+  const sub = subtitle ?? description
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", justifyContent: "space-between",
@@ -347,7 +348,7 @@ export function PageHeader({
     }}>
       <div>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{title}</h1>
-        {subtitle && <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--color-fg-muted)" }}>{subtitle}</p>}
+        {sub && <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--color-fg-muted)" }}>{sub}</p>}
       </div>
       {actions && <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>{actions}</div>}
     </div>

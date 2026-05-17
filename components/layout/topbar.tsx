@@ -43,9 +43,9 @@ export function Topbar({ user, notifications }: TopbarProps) {
     <header className="app-shell__topbar">
       {/* Search */}
       <div style={{ flex: 1, position: "relative", maxWidth: 400 }}>
-        <SearchIcon size={16} color="var(--color-fg-muted)"
-          style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" } as React.CSSProperties}
-        />
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", display: "flex" }}>
+          <SearchIcon size={16} color="var(--color-fg-muted)" />
+        </span>
         <input
           placeholder="Search…"
           style={{
