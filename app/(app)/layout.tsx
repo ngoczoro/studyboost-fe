@@ -14,12 +14,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="app-shell">
       <Sidebar role={session.role} userName={session.full_name} />
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-        <Topbar user={user} notifications={notifications} />
-        <main style={{ flex: 1, overflowY: "auto", padding: "32px 36px" }}>
-          {children}
-        </main>
-      </div>
+      <Topbar user={user} notifications={notifications} />
+      <main className="app-shell__content">{children}</main>
     </div>
   )
 }

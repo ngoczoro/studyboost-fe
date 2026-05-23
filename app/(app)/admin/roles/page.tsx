@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { Card, PageHeader, Badge } from "@/components/ui/primitives"
 import { ButtonSmall } from "@/components/ui/button-small"
 
@@ -107,8 +107,8 @@ export default function AdminRolesPage() {
           </thead>
           <tbody>
             {categories.map(category => (
-              <>
-                <tr key={`cat-${category}`} style={{ background: "var(--color-surface-2)" }}>
+              <Fragment key={category}>
+                <tr style={{ background: "var(--color-surface-2)" }}>
                   <td
                     colSpan={4}
                     style={{
@@ -148,7 +148,7 @@ export default function AdminRolesPage() {
                     })}
                   </tr>
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
