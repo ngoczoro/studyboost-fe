@@ -50,6 +50,15 @@ export interface SectionItem {
   title: string
   content?: string
   url?: string
+  document_url?: string
+  document_name?: string
+  document_size?: number
+  document_mime_type?: string
+  document_uploaded_at?: string
+  video_file_name?: string
+  video_file_size?: number
+  video_mime_type?: string
+  video_uploaded_at?: string
   order_index: number
   is_visible: boolean
 }

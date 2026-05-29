@@ -1,14 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import type { Course, Assignment } from "@/lib/types"
+import type { Course, Assignment, Enrollment, SectionItem } from "@/lib/types"
+import type { SectionWithItems } from "@/lib/api/sections"
 import {
   assignments as allAssignments, submissions, grades,
-  getCourseSections, getCourseEnrollments,
 } from "@/lib/mock-data"
-import { users } from "@/lib/mock-data"
+import {
+  sectionItemToLessonRequest,
+  toCreateItemPayload,
+} from "@/lib/api/lesson-mappers"
+import { LessonEditModal } from "@/components/lesson/lesson-edit-modal"
 import { Card, Badge, Tabs, IconButton, EmptyState, toast, Avatar, Modal } from "@/components/ui/primitives"
 import { ButtonSmall } from "@/components/ui/button-small"
 import {
@@ -21,6 +25,8 @@ import { relative } from "@/lib/fmt"
 interface Props {
   course: Course
   enrolledCount: number
+  enrollments: Enrollment[]
+  initialSections: SectionWithItems[]
 }
 
 const ITEM_META: Record<string, { bg: string; Icon: React.FC<{ size?: number }> }> = {
@@ -39,20 +45,24 @@ interface AssignmentEditModalProps {
   onSaved?: () => void
 }
 
-function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: AssignmentEditModalProps) {
-  const isEdit = !!assignment
-  const defaultForm = {
+function buildDefaultAssignmentForm() {
+  return {
     title: "",
     description: "",
     due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16),
     max_score: 100,
   }
-  const [form, setForm] = useState(defaultForm)
+}
 
-  const handle = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(prev => ({ ...prev, [k]: e.target.value }))
+function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: AssignmentEditModalProps) {
+  const isEdit = !!assignment
+  const [form, setForm] = useState(buildDefaultAssignmentForm)
 
-  const onOpen = () => {
+  useEffect(() => {
+    if (!open) {
+      setForm(buildDefaultAssignmentForm())
+      return
+    }
     if (assignment) {
       setForm({
         title: assignment.title,
@@ -61,9 +71,12 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: A
         max_score: assignment.max_score,
       })
     } else {
-      setForm(defaultForm)
+      setForm(buildDefaultAssignmentForm())
     }
-  }
+  }, [open, assignment])
+
+  const handle = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm(prev => ({ ...prev, [k]: e.target.value }))
 
   const submit = async () => {
     if (!form.title) return
@@ -75,7 +88,6 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: A
 
   return (
     <Modal open={open} onClose={onClose} title={isEdit ? "Edit assignment" : "New assignment"} width={520}>
-      {open && <span style={{ display: "none" }} ref={() => onOpen()} />}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Title</label>
@@ -102,51 +114,6 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: A
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
           <ButtonSmall variant="ghost" onClick={onClose}>Cancel</ButtonSmall>
           <ButtonSmall onClick={submit} disabled={!form.title}>{isEdit ? "Save changes" : "Create"}</ButtonSmall>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-/* ─── Section item edit modal ─── */
-interface SectionItem {
-  id: number
-  title: string
-  type: string
-  is_visible: boolean
-  duration?: string
-  file_size?: number
-}
-
-function SectionItemEditModal({ item, onClose }: { item: SectionItem | null; onClose: () => void }) {
-  const [title, setTitle] = useState(item?.title ?? "")
-  const [visible, setVisible] = useState(item?.is_visible ?? true)
-
-  const submit = async () => {
-    if (!item || !title) return
-    await new Promise(r => setTimeout(r, 200))
-    toast("Item updated", "success")
-    onClose()
-  }
-
-  return (
-    <Modal open={!!item} onClose={onClose} title="Edit item" width={420}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Title</label>
-          <input value={title} onChange={e => setTitle(e.target.value)}
-            style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-        </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
-          <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} />
-          Visible to students
-        </label>
-        <div style={{ fontSize: 12, color: "var(--color-fg-muted)" }}>
-          Type: <strong style={{ textTransform: "capitalize" }}>{item?.type}</strong>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
-          <ButtonSmall variant="ghost" onClick={onClose}>Cancel</ButtonSmall>
-          <ButtonSmall onClick={submit}>Save</ButtonSmall>
         </div>
       </div>
     </Modal>
@@ -235,8 +202,7 @@ function CourseAssignmentsTab({ courseId, onNew, onEdit }: { courseId: number; o
 }
 
 /* ─── Students sub-tab ─── */
-function CourseStudentsTab({ courseId }: { courseId: number }) {
-  const enrolled = getCourseEnrollments(courseId)
+function CourseStudentsTab({ enrollments }: { enrollments: Enrollment[] }) {
   return (
     <Card style={{ padding: 0 }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -247,8 +213,8 @@ function CourseStudentsTab({ courseId }: { courseId: number }) {
           </tr>
         </thead>
         <tbody>
-          {enrolled.map(e => {
-            const student = users.find(u => u.id === e.student_id)
+          {enrollments.map(e => {
+            const student = e.student
             if (!student) return null
             return (
               <tr key={e.id} style={{ borderTop: "1px solid var(--color-border)" }}>
@@ -271,7 +237,7 @@ function CourseStudentsTab({ courseId }: { courseId: number }) {
           })}
         </tbody>
       </table>
-      {enrolled.length === 0 && (
+      {enrollments.length === 0 && (
         <div style={{ padding: 32 }}>
           <EmptyState title="No students yet" description="Students will appear here after they enroll." />
         </div>
@@ -281,56 +247,228 @@ function CourseStudentsTab({ courseId }: { courseId: number }) {
 }
 
 /* ─── Main editor component ─── */
-export function CourseEditor({ course, enrolledCount }: Props) {
+export function CourseEditor({ course: initialCourse, enrolledCount, enrollments, initialSections }: Props) {
   const router = useRouter()
+  const [course, setCourse] = useState(initialCourse)
+  const [sections, setSections] = useState(initialSections)
   const [activeTab, setActiveTab] = useState("content")
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false)
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null)
   const [editingItem, setEditingItem] = useState<SectionItem | null>(null)
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null)
   const [editingSectionTitle, setEditingSectionTitle] = useState("")
+  const [settingsTitle, setSettingsTitle] = useState(initialCourse.title)
+  const [settingsDescription, setSettingsDescription] = useState(initialCourse.description ?? "")
+  const [settingsMaxStudents, setSettingsMaxStudents] = useState(initialCourse.max_students)
+  const [saving, setSaving] = useState(false)
+  const [contentLoading, setContentLoading] = useState(false)
 
-  const sections = getCourseSections(course.id)
+  useEffect(() => { setCourse(initialCourse) }, [initialCourse])
+  useEffect(() => { setSections(initialSections) }, [initialSections])
+
   const courseAssignments = allAssignments.filter(a => a.course_id === course.id)
+
+  async function patchCourse(body: Record<string, unknown>) {
+    const res = await fetch(`/api/courses/${course.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: course.title,
+        description: course.description,
+        thumbnailUrl: course.thumbnail_url,
+        maxStudents: course.max_students,
+        status: course.status,
+        ...body,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? "Update failed")
+    setCourse(data.course)
+    return data.course as Course
+  }
 
   const openNewAssignment = () => { setEditingAssignment(null); setAssignmentModalOpen(true) }
   const openEditAssignment = (a: Assignment) => { setEditingAssignment(a); setAssignmentModalOpen(true) }
 
   const togglePublish = async () => {
-    await new Promise(r => setTimeout(r, 200))
-    const next = course.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED"
-    toast(next === "PUBLISHED" ? "Course published" : "Course set to draft", "success")
+    setSaving(true)
+    try {
+      const next = course.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED"
+      await patchCourse({ status: next })
+      toast(next === "PUBLISHED" ? "Course published" : "Course set to draft", "success")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Update failed", "error")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const deleteCourse = async () => {
     if (!window.confirm(`Permanently delete "${course.title}"? This removes all sections, assignments, posts, and enrollments.`)) return
-    await new Promise(r => setTimeout(r, 200))
-    toast("Course deleted", "success")
-    router.push("/teacher/courses")
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/courses/${course.id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Delete failed")
+      toast("Course deleted", "success")
+      router.push("/teacher/courses")
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Delete failed", "error")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const addSection = async () => {
-    await new Promise(r => setTimeout(r, 200))
-    toast("Section added", "success")
+    setContentLoading(true)
+    try {
+      const res = await fetch(`/api/courses/${course.id}/sections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "New section", orderIndex: sections.length }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to add section")
+      toast("Section added", "success")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to add section", "error")
+    } finally {
+      setContentLoading(false)
+    }
   }
 
-  const saveSectionTitle = async () => {
-    await new Promise(r => setTimeout(r, 150))
-    toast("Section renamed", "success")
-    setEditingSectionId(null)
-    setEditingSectionTitle("")
+  const saveSectionTitle = async (sectionId: number) => {
+    const section = sections.find(s => s.id === sectionId)
+    if (!section || !editingSectionTitle.trim()) {
+      setEditingSectionId(null)
+      return
+    }
+    setContentLoading(true)
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editingSectionTitle.trim(),
+          orderIndex: section.order_index,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to rename section")
+      toast("Section renamed", "success")
+      setEditingSectionId(null)
+      setEditingSectionTitle("")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to rename section", "error")
+    } finally {
+      setContentLoading(false)
+    }
   }
 
   const deleteSection = async (sectionId: number) => {
     if (!window.confirm("Delete this section and all its items?")) return
-    await new Promise(r => setTimeout(r, 200))
-    toast("Section deleted", "success")
+    setContentLoading(true)
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete section")
+      toast("Section deleted", "success")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete section", "error")
+    } finally {
+      setContentLoading(false)
+    }
+  }
+
+  const addItem = async (sectionId: number, type: "video" | "file" | "text") => {
+    const section = sections.find(s => s.id === sectionId)
+    const orderIndex = section?.items?.length ?? 0
+    setContentLoading(true)
+    try {
+      const payload = toCreateItemPayload(type, orderIndex)
+      const res = await fetch(`/api/sections/${sectionId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to add item")
+
+      if (type === "text" && data.item) {
+        const updateRes = await fetch(`/api/items/${data.item.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "TEXT",
+            title: data.item.title,
+            content: "Enter lesson content here.",
+            orderIndex: data.item.order_index,
+            isVisible: true,
+          }),
+        })
+        if (!updateRes.ok) {
+          const updateData = await updateRes.json()
+          throw new Error(updateData.error ?? "Failed to initialize text lesson")
+        }
+      }
+
+      toast(`${type === "video" ? "Video" : type === "file" ? "File" : "Text"} lesson added`, "success")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to add item", "error")
+    } finally {
+      setContentLoading(false)
+    }
+  }
+
+  const saveItem = async (
+    item: SectionItem,
+    updates: {
+      title: string
+      is_visible: boolean
+      content?: string
+      url?: string
+      document_url?: string
+      document_name?: string
+      document_size?: number
+      document_mime_type?: string
+      document_uploaded_at?: string
+      video_file_name?: string
+      video_file_size?: number
+      video_mime_type?: string
+      video_uploaded_at?: string
+    },
+  ) => {
+    const body = sectionItemToLessonRequest(item, updates)
+    const res = await fetch(`/api/items/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? "Failed to update item")
+    toast("Item updated", "success")
+    router.refresh()
   }
 
   const deleteItem = async (itemId: number) => {
     if (!window.confirm("Delete this item?")) return
-    await new Promise(r => setTimeout(r, 200))
-    toast("Item deleted", "success")
+    setContentLoading(true)
+    try {
+      const res = await fetch(`/api/items/${itemId}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete item")
+      toast("Item deleted", "success")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete item", "error")
+    } finally {
+      setContentLoading(false)
+    }
   }
 
   return (
@@ -345,10 +483,10 @@ export function CourseEditor({ course, enrolledCount }: Props) {
           {course.description && <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--color-fg-muted)" }}>{course.description}</p>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <ButtonSmall variant="ghost" onClick={togglePublish}>
+          <ButtonSmall variant="ghost" onClick={togglePublish} disabled={saving}>
             {course.status === "PUBLISHED" ? "Unpublish" : "Publish"}
           </ButtonSmall>
-          <ButtonSmall variant="danger" onClick={deleteCourse}>Delete</ButtonSmall>
+          <ButtonSmall variant="danger" onClick={deleteCourse} disabled={saving}>Delete</ButtonSmall>
         </div>
       </div>
 
@@ -367,6 +505,12 @@ export function CourseEditor({ course, enrolledCount }: Props) {
 
       {activeTab === "content" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {sections.length === 0 ? (
+            <EmptyState
+              title="No sections yet"
+              description="Add your first section to start building course content."
+            />
+          ) : null}
           {sections.map(s => (
             <Card key={s.id} style={{ padding: 0 }}>
               <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--color-border)", display: "flex", alignItems: "center", gap: 8 }}>
@@ -375,8 +519,8 @@ export function CourseEditor({ course, enrolledCount }: Props) {
                   <input
                     value={editingSectionTitle}
                     onChange={e => setEditingSectionTitle(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") saveSectionTitle(); if (e.key === "Escape") setEditingSectionId(null) }}
-                    onBlur={saveSectionTitle}
+                    onKeyDown={e => { if (e.key === "Enter") saveSectionTitle(s.id); if (e.key === "Escape") setEditingSectionId(null) }}
+                    onBlur={() => saveSectionTitle(s.id)}
                     autoFocus
                     style={{ flex: 1, height: 32, padding: "0 10px", border: "1px solid var(--color-primary-600)", borderRadius: 8, fontSize: 14, fontWeight: 600, outline: "none", background: "var(--color-surface)", color: "var(--color-fg)" }}
                   />
@@ -388,7 +532,7 @@ export function CourseEditor({ course, enrolledCount }: Props) {
                 <IconButton onClick={() => deleteSection(s.id)} title="Delete"><TrashIcon size={14} /></IconButton>
               </div>
               <div>
-                {(s.items ?? []).map((item: SectionItem) => (
+                {(s.items ?? []).map(item => (
                   <SectionItemRow
                     key={item.id}
                     item={item}
@@ -398,17 +542,14 @@ export function CourseEditor({ course, enrolledCount }: Props) {
                 ))}
               </div>
               <div style={{ padding: 12, borderTop: "1px solid var(--color-border)", background: "var(--color-surface-2, #f8f9fa)", display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <ButtonSmall variant="ghost" onClick={() => toast("Video lesson added", "success")}>
+                <ButtonSmall variant="ghost" disabled={contentLoading} onClick={() => addItem(s.id, "video")}>
                   <PlayIcon size={13} /> Video
                 </ButtonSmall>
-                <ButtonSmall variant="ghost" onClick={() => toast("File added", "success")}>
+                <ButtonSmall variant="ghost" disabled={contentLoading} onClick={() => addItem(s.id, "file")}>
                   <FileIcon size={13} /> File
                 </ButtonSmall>
-                <ButtonSmall variant="ghost" onClick={() => toast("Text item added", "success")}>
+                <ButtonSmall variant="ghost" disabled={contentLoading} onClick={() => addItem(s.id, "text")}>
                   <DocIcon size={13} /> Text
-                </ButtonSmall>
-                <ButtonSmall variant="ghost" onClick={openNewAssignment}>
-                  <ClipboardCheckIcon size={13} /> Assignment
                 </ButtonSmall>
               </div>
             </Card>
@@ -416,9 +557,10 @@ export function CourseEditor({ course, enrolledCount }: Props) {
           <button
             type="button"
             onClick={addSection}
+            disabled={contentLoading}
             style={{
               padding: 20, border: "2px dashed var(--color-border)", borderRadius: "var(--radius-lg)",
-              background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: 600,
+              background: "transparent", cursor: contentLoading ? "wait" : "pointer", fontSize: 14, fontWeight: 600,
               color: "var(--color-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
           >
@@ -431,28 +573,56 @@ export function CourseEditor({ course, enrolledCount }: Props) {
         <CourseAssignmentsTab courseId={course.id} onNew={openNewAssignment} onEdit={openEditAssignment} />
       )}
 
-      {activeTab === "students" && <CourseStudentsTab courseId={course.id} />}
+      {activeTab === "students" && <CourseStudentsTab enrollments={enrollments} />}
 
       {activeTab === "settings" && (
         <Card>
           <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 480 }}>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Title</label>
-              <input defaultValue={course.title}
+              <input
+                value={settingsTitle}
+                onChange={e => setSettingsTitle(e.target.value)}
                 style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Description</label>
-              <textarea defaultValue={course.description ?? ""} rows={3}
+              <textarea
+                value={settingsDescription}
+                onChange={e => setSettingsDescription(e.target.value)}
+                rows={3}
                 style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Max students</label>
-              <input type="number" defaultValue={course.max_students}
+              <input
+                type="number"
+                value={settingsMaxStudents}
+                onChange={e => setSettingsMaxStudents(Number(e.target.value))}
                 style={{ width: 120, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none" }} />
             </div>
             <div>
-              <ButtonSmall onClick={() => toast("Settings saved", "success")}>Save settings</ButtonSmall>
+              <ButtonSmall
+                disabled={saving || !settingsTitle.trim()}
+                onClick={async () => {
+                  setSaving(true)
+                  try {
+                    await patchCourse({
+                      title: settingsTitle.trim(),
+                      description: settingsDescription.trim() || undefined,
+                      maxStudents: settingsMaxStudents,
+                    })
+                    toast("Settings saved", "success")
+                    router.refresh()
+                  } catch (err) {
+                    toast(err instanceof Error ? err.message : "Save failed", "error")
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              >
+                Save settings
+              </ButtonSmall>
             </div>
           </div>
         </Card>
@@ -465,9 +635,10 @@ export function CourseEditor({ course, enrolledCount }: Props) {
         assignment={editingAssignment}
         onSaved={() => {}}
       />
-      <SectionItemEditModal
+      <LessonEditModal
         item={editingItem}
         onClose={() => setEditingItem(null)}
+        onSave={saveItem}
       />
     </>
   )

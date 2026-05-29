@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { PageHeader, Card, EmptyState, Modal } from "@/components/ui/primitives"
+import { useRouter } from "next/navigation"
+import { PageHeader, Card, EmptyState, Modal, toast } from "@/components/ui/primitives"
 import { ButtonSmall } from "@/components/ui/button-small"
 import { CourseGlyph } from "@/components/ui/course-glyph"
 import Link from "next/link"
@@ -19,7 +20,25 @@ interface Props {
 }
 
 export function StudentCoursesClient({ enrolled, catalog }: Props) {
+  const router = useRouter()
   const [browseOpen, setBrowseOpen] = useState(false)
+  const [enrollingId, setEnrollingId] = useState<number | null>(null)
+
+  async function handleEnroll(courseId: number) {
+    setEnrollingId(courseId)
+    try {
+      const res = await fetch(`/api/courses/${courseId}/enroll`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Enrollment failed")
+      toast("Enrolled successfully", "success")
+      setBrowseOpen(false)
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Enrollment failed", "error")
+    } finally {
+      setEnrollingId(null)
+    }
+  }
 
   return (
     <>
@@ -127,14 +146,14 @@ export function StudentCoursesClient({ enrolled, catalog }: Props) {
                     </div>
                   )}
                 </div>
-                <span style={{ fontSize: 12, color: "var(--color-fg-muted)", flexShrink: 0 }}>
-                  {course.max_students} seats
-                </span>
+                <ButtonSmall
+                  onClick={() => handleEnroll(course.id)}
+                  disabled={enrollingId === course.id}
+                >
+                  {enrollingId === course.id ? "Enrolling…" : "Enroll"}
+                </ButtonSmall>
               </div>
             ))}
-            <p style={{ fontSize: 12, color: "var(--color-fg-muted)", margin: 0, textAlign: "center" }}>
-              Enrollment is managed by your institution. Contact your teacher to join.
-            </p>
           </div>
         )}
       </Modal>

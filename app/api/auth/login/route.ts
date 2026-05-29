@@ -1,28 +1,34 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createSession } from "@/lib/session"
-import { users } from "@/lib/mock-data"
-import type { Role } from "@/lib/types"
+
+import { loginWithBackend, fetchCurrentUser, ApiError } from "@/lib/api-client"
+import { toSessionUser } from "@/lib/auth"
+import { setAuthCookies } from "@/lib/auth-cookies"
 
 export async function POST(req: NextRequest) {
-  const { email, password, role } = await req.json()
+  const { email, password } = await req.json()
 
   if (!email || !password) {
-    return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Email and password are required" },
+      { status: 400 },
+    )
   }
 
-  const user = users.find(u => u.email === email && u.is_active)
-  if (!user) {
-    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
+  try {
+    const auth = await loginWithBackend(email, password)
+    const profile = await fetchCurrentUser(auth.accessToken)
+    const user = toSessionUser(profile)
+
+    if (!profile.isActive) {
+      return NextResponse.json({ error: "Account is inactive" }, { status: 403 })
+    }
+
+    await setAuthCookies(auth, user)
+    return NextResponse.json({ user })
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    return NextResponse.json({ error: "Sign in failed" }, { status: 500 })
   }
-
-  const sessionUser = {
-    id: user.id,
-    email: user.email,
-    full_name: user.full_name,
-    role: (role ?? user.role) as Role,
-  }
-
-  await createSession(sessionUser)
-
-  return NextResponse.json({ user: sessionUser })
 }

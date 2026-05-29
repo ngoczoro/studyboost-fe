@@ -1,6 +1,8 @@
 import { verifySession } from "@/lib/session"
 import { redirect } from "next/navigation"
-import { courses, enrollments } from "@/lib/mock-data"
+import { getCourseById } from "@/lib/api/courses"
+import { listCourseStudents } from "@/lib/api/enrollments"
+import { getCourseCurriculum } from "@/lib/api/sections"
 import { CourseEditor } from "./course-editor"
 
 export default async function TeacherCourseEditorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -9,10 +11,21 @@ export default async function TeacherCourseEditorPage({ params }: { params: Prom
   if (!session || session.role !== "teacher") redirect("/login")
 
   const courseId = Number(id)
-  const course = courses.find(c => c.id === courseId && c.teacher_id === session.id)
-  if (!course) redirect("/teacher/courses")
+  const course = await getCourseById(courseId)
+  if (!course || course.teacher_id !== session.id) redirect("/teacher/courses")
 
-  const enrolledCount = enrollments.filter(e => e.course_id === courseId && e.status === "ACTIVE").length
+  const [enrollments, sections] = await Promise.all([
+    listCourseStudents(courseId),
+    getCourseCurriculum(courseId),
+  ])
+  const enrolledCount = enrollments.filter(e => e.status === "ACTIVE").length
 
-  return <CourseEditor course={course} enrolledCount={enrolledCount} />
+  return (
+    <CourseEditor
+      course={course}
+      enrolledCount={enrolledCount}
+      enrollments={enrollments}
+      initialSections={sections}
+    />
+  )
 }

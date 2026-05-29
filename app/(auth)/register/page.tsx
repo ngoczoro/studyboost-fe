@@ -33,7 +33,7 @@ export default function RegisterPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Sign up failed")
       toast("Account created — welcome!")
-      router.push("/student/dashboard")
+      router.push(`/${data.user.role}/dashboard`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Sign up failed")
     } finally {

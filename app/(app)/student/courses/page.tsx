@@ -1,30 +1,59 @@
 import { verifySession } from "@/lib/session"
 import { redirect } from "next/navigation"
-import { getStudentEnrollments, courses, getUser } from "@/lib/mock-data"
+import { listCourses } from "@/lib/api/courses"
+import { listMyEnrollments } from "@/lib/api/enrollments"
+import { ApiError } from "@/lib/api-client"
+import { Card, EmptyState, PageHeader } from "@/components/ui/primitives"
 import { StudentCoursesClient } from "./courses-client"
 
 export default async function StudentCoursesPage() {
   const session = await verifySession()
   if (!session || session.role !== "student") redirect("/login")
 
-  const enrollments = getStudentEnrollments(session.id).filter(e => e.status === "ACTIVE")
-  const enrolledIds = new Set(enrollments.map(e => e.course_id))
+  try {
+    const [enrollments, publishedCourses] = await Promise.all([
+      listMyEnrollments("ACTIVE"),
+      listCourses({ status: "PUBLISHED" }),
+    ])
 
-  const enrolled = enrollments
-    .map(e => {
-      const course = courses.find(c => c.id === e.course_id)
-      if (!course) return null
-      const teacher = getUser(course.teacher_id)
-      return { enrollmentId: e.id, course, teacherName: teacher?.full_name ?? "Unknown" }
-    })
-    .filter(Boolean) as { enrollmentId: number; course: (typeof courses)[0]; teacherName: string }[]
+    const enrolledIds = new Set(
+      enrollments.map(e => e.course_id).filter(Boolean),
+    )
 
-  const catalog = courses
-    .filter(c => c.status === "PUBLISHED" && !enrolledIds.has(c.id))
-    .map(c => {
-      const teacher = getUser(c.teacher_id)
-      return { ...c, teacherName: teacher?.full_name ?? "Unknown" }
-    })
+    const enrolled = enrollments
+      .map(e => {
+        const course = e.course
+        if (!course) return null
+        return {
+          enrollmentId: e.id,
+          course,
+          teacherName: course.teacher?.full_name ?? "Unknown",
+        }
+      })
+      .filter(Boolean) as {
+        enrollmentId: number
+        course: NonNullable<(typeof enrollments)[0]["course"]>
+        teacherName: string
+      }[]
 
-  return <StudentCoursesClient enrolled={enrolled} catalog={catalog} />
+    const catalog = publishedCourses
+      .filter(c => !enrolledIds.has(c.id))
+      .map(c => ({
+        ...c,
+        teacherName: c.teacher?.full_name ?? "Unknown",
+      }))
+
+    return <StudentCoursesClient enrolled={enrolled} catalog={catalog} />
+  } catch (err) {
+    const message =
+      err instanceof ApiError ? err.message : "Failed to load courses"
+    return (
+      <>
+        <PageHeader title="My Courses" subtitle="Unable to load courses" />
+        <Card>
+          <EmptyState title="Could not load courses" description={message} />
+        </Card>
+      </>
+    )
+  }
 }

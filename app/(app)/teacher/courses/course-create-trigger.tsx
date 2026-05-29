@@ -1,14 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { ButtonSmall } from "@/components/ui/button-small"
 import { CourseCreateModal } from "@/components/course-create-modal"
 
-interface Props {
-  teacherId: number
-}
-
-export function CourseCreateTrigger({ teacherId }: Props) {
+export function CourseCreateTrigger() {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
 
   return (
@@ -17,7 +15,7 @@ export function CourseCreateTrigger({ teacherId }: Props) {
       <CourseCreateModal
         open={open}
         onClose={() => setOpen(false)}
-        teacherId={teacherId}
+        onCreated={() => router.refresh()}
       />
     </>
   )

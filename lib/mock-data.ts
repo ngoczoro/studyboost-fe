@@ -1,4 +1,4 @@
-import type { User, Course, Enrollment, Assignment, Submission, Grade, Post, Comment, Notification, Section, SectionItem } from "./types"
+import type { User, Course, Enrollment, Assignment, Submission, Grade, Post, Comment, Notification } from "./types"
 
 export const users: User[] = [
   { id: 1, email: "admin@lms.edu",     full_name: "Admin System",    role: "admin",   is_active: true, created_at: "2025-01-01T00:00:00Z" },
@@ -19,25 +19,6 @@ export const courses: Course[] = [
   { id: 103, title: "Database Design",             description: "SQL, normalization, and ORM patterns.",         teacher_id: 3, status: "PUBLISHED", max_students: 35, created_at: "2025-02-10T00:00:00Z", thumbnail_color: "#60a5fa", thumbnail_glyph: "DB" },
   { id: 104, title: "Spring Boot REST APIs",       description: "Backend development with Spring Boot 3.",       teacher_id: 3, status: "DRAFT",     max_students: 30, created_at: "2025-03-01T00:00:00Z", thumbnail_color: "#f472b6", thumbnail_glyph: "UX" },
   { id: 105, title: "Data Structures & Algorithms",description: "Algorithms and complexity analysis.",            teacher_id: 4, status: "PUBLISHED", max_students: 60, created_at: "2025-03-10T00:00:00Z", thumbnail_color: "#a78bfa", thumbnail_glyph: "Σ" },
-]
-
-export const sections: Section[] = [
-  { id: 1, course_id: 101, title: "Getting Started",  order_index: 0 },
-  { id: 2, course_id: 101, title: "OOP Fundamentals", order_index: 1 },
-  { id: 3, course_id: 102, title: "React Basics",     order_index: 0 },
-  { id: 4, course_id: 102, title: "Hooks Deep Dive",  order_index: 1 },
-]
-
-export const sectionItems: SectionItem[] = [
-  { id: 1,  section_id: 1, type: "video", title: "Setting Up JDK",         order_index: 0, is_visible: true, url: "#" },
-  { id: 2,  section_id: 1, type: "text",  title: "Hello World walkthrough", order_index: 1, is_visible: true, content: "# Hello World\n\nYour first Java program..." },
-  { id: 3,  section_id: 1, type: "file",  title: "Starter project ZIP",     order_index: 2, is_visible: true, url: "#" },
-  { id: 4,  section_id: 2, type: "video", title: "Classes & Objects",        order_index: 0, is_visible: true, url: "#" },
-  { id: 5,  section_id: 2, type: "video", title: "Inheritance",              order_index: 1, is_visible: true, url: "#" },
-  { id: 6,  section_id: 3, type: "video", title: "JSX Syntax",               order_index: 0, is_visible: true, url: "#" },
-  { id: 7,  section_id: 3, type: "text",  title: "Component model",          order_index: 1, is_visible: true, content: "# React Components\n\nComponents are the building blocks..." },
-  { id: 8,  section_id: 4, type: "video", title: "useState & useEffect",     order_index: 0, is_visible: true, url: "#" },
-  { id: 9,  section_id: 4, type: "video", title: "useContext & useReducer",   order_index: 1, is_visible: false, url: "#" },
 ]
 
 export const enrollments: Enrollment[] = [
@@ -106,10 +87,6 @@ export function getGrade(submissionId: number) { return grades.find(g => g.submi
 export function getCoursePosts(courseId: number) { return posts.filter(p => p.course_id === courseId) }
 export function getPostComments(postId: number) { return comments.filter(c => c.post_id === postId) }
 export function getUserNotifications(userId: number) { return notifications.filter(n => n.recipient_id === userId) }
-export function getCourseSections(courseId: number) {
-  const secs = sections.filter(s => s.course_id === courseId).sort((a,b) => a.order_index - b.order_index)
-  return secs.map(s => ({ ...s, items: sectionItems.filter(i => i.section_id === s.id).sort((a,b) => a.order_index - b.order_index) }))
-}
 export function getAssignmentSubmissions(assignmentId: number) {
   return submissions.filter(s => s.assignment_id === assignmentId).map(s => ({
     ...s,

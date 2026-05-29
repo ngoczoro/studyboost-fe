@@ -3,6 +3,10 @@
 import { useState } from "react"
 import { Tabs, Card, EmptyState } from "@/components/ui/primitives"
 import { PostCard } from "@/components/post-card"
+import { VideoPlayer } from "@/components/lesson/video-player"
+import { DocumentViewer } from "@/components/lesson/document-viewer"
+import { MarkdownContent } from "@/components/lesson/markdown-content"
+import { resolveMediaUrl } from "@/lib/api/lesson-mappers"
 import type { Course, Section, SectionItem, Assignment, Submission, Grade } from "@/lib/types"
 
 interface PostMeta {
@@ -35,11 +39,8 @@ function ItemViewer({ item }: { item: SectionItem | null }) {
   if (item.type === "video") {
     return (
       <div>
-        <div style={{ aspectRatio: "16/9", background: "#0f172a", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-          <div style={{ textAlign: "center", color: "#94a3b8" }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>▶</div>
-            <div style={{ fontSize: 14 }}>Video: {item.title}</div>
-          </div>
+        <div style={{ marginBottom: 16 }}>
+          <VideoPlayer url={resolveMediaUrl(item.url)} title={item.title} />
         </div>
         <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>{item.title}</h2>
       </div>
@@ -47,21 +48,20 @@ function ItemViewer({ item }: { item: SectionItem | null }) {
   }
   if (item.type === "file") {
     return (
-      <div style={{ textAlign: "center", padding: "48px 24px" }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
-        <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>{item.title}</h3>
-        <a href={item.url ?? "#"} style={{ color: "var(--color-primary-600)", fontSize: 14, fontWeight: 500 }}>
-          Download file
-        </a>
-      </div>
+      <DocumentViewer
+        title={item.title}
+        documentUrl={item.document_url}
+        documentName={item.document_name}
+        documentSize={item.document_size}
+        documentMimeType={item.document_mime_type}
+        documentUploadedAt={item.document_uploaded_at}
+      />
     )
   }
   return (
     <div>
       <h2 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 700 }}>{item.title}</h2>
-      <div style={{ fontSize: 14, lineHeight: 1.7, color: "var(--color-fg)", whiteSpace: "pre-wrap" }}>
-        {item.content ?? "No content available."}
-      </div>
+      <MarkdownContent content={item.content} />
     </div>
   )
 }

@@ -7,11 +7,10 @@ import { ButtonSmall } from "@/components/ui/button-small"
 interface Props {
   open: boolean
   onClose: () => void
-  teacherId: number
   onCreated?: () => void
 }
 
-export function CourseCreateModal({ open, onClose, teacherId, onCreated }: Props) {
+export function CourseCreateModal({ open, onClose, onCreated }: Props) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [maxStudents, setMaxStudents] = useState(30)
@@ -20,14 +19,30 @@ export function CourseCreateModal({ open, onClose, teacherId, onCreated }: Props
   const handleSubmit = async () => {
     if (!title.trim()) return
     setSaving(true)
-    await new Promise(r => setTimeout(r, 400))
-    setSaving(false)
-    toast("Course draft created", "success")
-    setTitle("")
-    setDescription("")
-    setMaxStudents(30)
-    onCreated?.()
-    onClose()
+    try {
+      const res = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          maxStudents,
+          status: "DRAFT",
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to create course")
+      toast("Course draft created", "success")
+      setTitle("")
+      setDescription("")
+      setMaxStudents(30)
+      onCreated?.()
+      onClose()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to create course", "error")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
