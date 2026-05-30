@@ -1,31 +1,31 @@
 import { verifySession } from "@/lib/session"
 import { redirect } from "next/navigation"
-import { listMyEnrollments } from "@/lib/api/enrollments"
-import { listStudentAssignmentRows } from "@/lib/api/assignments"
+import { listTeacherAssignmentRows } from "@/lib/api/assignments"
 import { listMyPersonalEvents } from "@/lib/api/personal-events"
+import { listCourses } from "@/lib/api/courses"
 import { PageHeader, Card, EmptyState } from "@/components/ui/primitives"
 import { CalendarClient } from "@/components/calendar/calendar-client"
 import { ApiError } from "@/lib/api-client"
 
-export default async function StudentCalendarPage() {
+export default async function TeacherCalendarPage() {
   const session = await verifySession()
-  if (!session || session.role !== "student") redirect("/login")
+  if (!session || session.role !== "teacher") redirect("/login")
 
   try {
-    const [enrollments, assignments, personalEventsRaw] = await Promise.all([
-      listMyEnrollments("ACTIVE"),
-      listStudentAssignmentRows(),
+    const [assignments, personalEventsRaw, courses] = await Promise.all([
+      listTeacherAssignmentRows(session.id),
       listMyPersonalEvents(),
+      listCourses({ teacherId: session.id }),
     ])
 
     const assignmentEvents = assignments
-      .filter(a => !!a.dueDate)
+      .filter(a => !!a.due_date)
       .map(a => ({
         id: `assignment-${a.id}`,
-        date: a.dueDate!,
+        date: a.due_date!,
         title: a.title,
         type: "assignment" as const,
-        course: a.course,
+        course: courses.find(c => c.id === a.course_id),
         assignmentId: a.id,
       }))
 
@@ -41,10 +41,10 @@ export default async function StudentCalendarPage() {
       <div>
         <PageHeader
           title="Calendar"
-          subtitle={`${enrollments.length} enrolled course${enrollments.length !== 1 ? "s" : ""}`}
+          subtitle={`${courses.length} course${courses.length !== 1 ? "s" : ""}`}
         />
         <CalendarClient
-          role="student"
+          role="teacher"
           assignmentEvents={assignmentEvents}
           personalEvents={personalEvents}
         />

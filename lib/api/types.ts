@@ -111,3 +111,87 @@ export interface BackendFileUploadResponse {
   mimeType?: string
   uploadedAt?: string
 }
+
+export interface BackendAssignmentRequest {
+  title: string
+  description?: string
+  maxScore?: number
+  dueDate?: string
+  allowLateSubmission?: boolean
+  maxFiles?: number
+  maxFileSizeMb?: number
+  allowedFileTypes?: string
+}
+
+export interface BackendAssignmentResponse {
+  id: number
+  courseId: number
+  sectionId?: number | null
+  title: string
+  description?: string | null
+  maxScore: number
+  dueDate?: string | null
+  allowLateSubmission?: boolean
+  maxFiles?: number | null
+  maxFileSizeMb?: number | null
+  allowedFileTypes?: string | null
+  createdAt?: string | null
+}
+
+export interface BackendSubmissionFileResponse {
+  id: number
+  fileName: string
+  filePath: string
+  fileSize?: number | null
+  mimeType?: string | null
+  orderIndex?: number | null
+}
+
+export interface BackendSubmissionResponse {
+  id: number
+  assignmentId: number
+  assignmentTitle?: string | null
+  studentId: number
+  studentName?: string | null
+  version: number
+  isFinal?: boolean
+  note?: string | null
+  submittedAt?: string | null
+  isLate?: boolean
+  assignmentDueDate?: string | null
+  status?: string | null
+  files?: BackendSubmissionFileResponse[]
+  score?: number | null
+  feedback?: string | null
+}
+
+export interface BackendGradeRequest {
+  score: number
+  feedback?: string
+}
+
+export interface BackendGradeResponse {
+  id: number
+  submissionId: number
+  assignmentId?: number
+  assignmentTitle?: string | null
+  studentId?: number
+  studentName?: string | null
+  score: number
+  feedback?: string | null
+  graderName?: string | null
+  gradedAt?: string | null
+}
+
+export interface BackendPersonalEventRequest {
+  title: string
+  eventDate: string
+}
+
+export interface BackendPersonalEventResponse {
+  id: number
+  title: string
+  eventDate: string
+  createdAt?: string | null
+  updatedAt?: string | null
+}

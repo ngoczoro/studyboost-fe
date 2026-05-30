@@ -1,27 +1,63 @@
 "use client"
 
 import { useState } from "react"
-import { Card } from "@/components/ui/primitives"
+import { useRouter } from "next/navigation"
+import { Card, toast } from "@/components/ui/primitives"
+import { formatDateTimeHcm } from "@/lib/datetime-format"
+import { formatSubmissionTiming } from "@/lib/submission-timing"
+import { resolveSubmissionFileUrl } from "@/lib/submission-files"
 import type { Assignment, Submission, Grade, Course } from "@/lib/types"
+import type { BackendSubmissionFileResponse } from "@/lib/api/types"
 
 interface Props {
   assignment: Assignment
   course: Course
-  submission?: Submission & { grade?: Grade }
+  submission?: Submission & { grade?: Grade; files?: BackendSubmissionFileResponse[] }
 }
 
 export function AssignmentDetailClient({ assignment, course, submission }: Props) {
-  const [text, setText] = useState("")
-  const [submitted, setSubmitted] = useState(false)
+  const router = useRouter()
+  const [note, setNote] = useState("")
+  const [files, setFiles] = useState<File[]>([])
+  const [submitting, setSubmitting] = useState(false)
 
   const isGraded = !!submission?.grade
-  const isSubmitted = !!submission || submitted
+  const isSubmitted = !!submission
   const isPastDue = assignment.due_date ? new Date(assignment.due_date) < new Date() : false
+  const gradedScore = submission?.grade?.score
+  const timingMessage = submission
+    ? formatSubmissionTiming(submission.submitted_at, assignment.due_date)
+    : null
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!text.trim()) return
-    setSubmitted(true)
+    if (!note.trim() && files.length === 0) {
+      toast("Add a note or attach at least one file", "error")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const formData = new FormData()
+      formData.append("note", note.trim())
+      for (const file of files) {
+        formData.append("files", file)
+      }
+
+      const res = await fetch(`/api/assignments/${assignment.id}/submissions`, {
+        method: "POST",
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Submit failed")
+
+      toast("Assignment submitted", "success")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Submit failed", "error")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -33,14 +69,13 @@ export function AssignmentDetailClient({ assignment, course, submission }: Props
         alignItems: "start",
       }}
     >
-      {/* Main area */}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>{assignment.title}</h1>
           <div style={{ fontSize: 13, color: "var(--color-fg-muted)" }}>{course.title}</div>
         </div>
 
-        {isGraded && submission?.grade && (
+        {isGraded && gradedScore != null && (
           <Card
             style={{
               padding: "16px 20px",
@@ -49,9 +84,9 @@ export function AssignmentDetailClient({ assignment, course, submission }: Props
             }}
           >
             <div style={{ fontWeight: 700, color: "#15803d", marginBottom: 6 }}>
-              Graded: {submission.grade.score}/{assignment.max_score}
+              Graded: {gradedScore}/{assignment.max_score}
             </div>
-            {submission.grade.feedback && (
+            {submission?.grade?.feedback && (
               <div style={{ fontSize: 13, color: "var(--color-fg)", whiteSpace: "pre-wrap" }}>
                 {submission.grade.feedback}
               </div>
@@ -81,11 +116,38 @@ export function AssignmentDetailClient({ assignment, course, submission }: Props
                 color: "var(--color-fg)",
               }}
             >
-              {submission?.content ?? text}
+              {submission?.content ?? "No note provided."}
             </div>
-            {submission?.attachment_url && (
+            {submission?.files?.map(file => {
+              const href = resolveSubmissionFileUrl(file)
+              return href ? (
+                <a
+                  key={file.id}
+                  href={href}
+                  download={file.fileName}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 12,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--color-border)",
+                    fontSize: 13,
+                    color: "var(--color-primary-600)",
+                    textDecoration: "none",
+                    background: "var(--color-surface-2)",
+                  }}
+                >
+                  📎 {file.fileName}
+                </a>
+              ) : null
+            })}
+            {!submission?.files?.length && submission?.attachment_url && (
               <a
                 href={submission.attachment_url}
+                target="_blank"
+                rel="noreferrer"
                 style={{ display: "block", marginTop: 12, fontSize: 13, color: "var(--color-primary-600)" }}
               >
                 View attachment
@@ -104,14 +166,14 @@ export function AssignmentDetailClient({ assignment, course, submission }: Props
                 letterSpacing: "0.04em",
               }}
             >
-              Your answer
+              Submit your work
             </div>
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <textarea
-                value={text}
-                onChange={e => setText(e.target.value)}
-                placeholder="Write your answer here…"
-                rows={8}
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                placeholder="Add a note or written answer…"
+                rows={6}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -127,22 +189,36 @@ export function AssignmentDetailClient({ assignment, course, submission }: Props
                   outline: "none",
                 }}
               />
+              <div>
+                <input
+                  type="file"
+                  multiple
+                  onChange={e => setFiles(Array.from(e.target.files ?? []))}
+                  style={{ fontSize: 13 }}
+                />
+                {files.length > 0 && (
+                  <div style={{ fontSize: 12, color: "var(--color-fg-muted)", marginTop: 6 }}>
+                    {files.length} file{files.length !== 1 ? "s" : ""} selected
+                  </div>
+                )}
+              </div>
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
                 <button
                   type="submit"
-                  disabled={!text.trim()}
+                  disabled={submitting || (!note.trim() && files.length === 0)}
                   style={{
                     padding: "8px 20px",
-                    background: text.trim() ? "var(--color-primary-600)" : "var(--color-border)",
-                    color: text.trim() ? "#fff" : "var(--color-fg-muted)",
+                    background: !submitting ? "var(--color-primary-600)" : "var(--color-border)",
+                    color: "#fff",
                     border: "none",
                     borderRadius: "var(--radius-md)",
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: text.trim() ? "pointer" : "not-allowed",
+                    cursor: submitting ? "wait" : "pointer",
+                    opacity: submitting || (!note.trim() && files.length === 0) ? 0.6 : 1,
                   }}
                 >
-                  Submit
+                  {submitting ? "Submitting…" : "Submit"}
                 </button>
               </div>
               {isPastDue && !assignment.allow_late_submission && (
@@ -160,7 +236,6 @@ export function AssignmentDetailClient({ assignment, course, submission }: Props
         )}
       </div>
 
-      {/* Sidebar */}
       <Card style={{ padding: "20px 20px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
@@ -184,28 +259,43 @@ export function AssignmentDetailClient({ assignment, course, submission }: Props
             </div>
           </div>
 
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
-              Max Score
+          {isSubmitted && submission?.submitted_at && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                Submitted At
+              </div>
+              <div style={{ fontSize: 13 }}>{formatDateTimeHcm(submission.submitted_at)}</div>
             </div>
-            <div style={{ fontSize: 13 }}>{assignment.max_score} points</div>
-          </div>
+          )}
+
+          {timingMessage && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                Submission Timing
+              </div>
+              <div style={{ fontSize: 13, color: submission?.is_late ? "#d97706" : "#15803d" }}>
+                {timingMessage}
+              </div>
+            </div>
+          )}
 
           {assignment.due_date && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
                 Due Date
               </div>
-              <div style={{ fontSize: 13, color: isPastDue ? "#dc2626" : "var(--color-fg)" }}>
-                {new Date(assignment.due_date).toLocaleDateString("en-US", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
+              <div style={{ fontSize: 13, color: isPastDue && !isSubmitted ? "#dc2626" : "var(--color-fg)" }}>
+                {formatDateTimeHcm(assignment.due_date)}
               </div>
             </div>
           )}
+
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+              Max Score
+            </div>
+            <div style={{ fontSize: 13 }}>{assignment.max_score} points</div>
+          </div>
 
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>

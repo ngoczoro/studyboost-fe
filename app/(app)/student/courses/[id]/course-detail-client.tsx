@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Tabs, Card, EmptyState } from "@/components/ui/primitives"
+import { formatDateTimeHcm } from "@/lib/datetime-format"
 import { PostCard } from "@/components/post-card"
 import { VideoPlayer } from "@/components/lesson/video-player"
 import { DocumentViewer } from "@/components/lesson/document-viewer"
@@ -183,7 +184,7 @@ export function CourseDetailClient({ course, sections, assignments, posts, stude
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{a.title}</div>
                           {a.due_date && (
                             <div style={{ fontSize: 12, color: "var(--color-fg-muted)", marginTop: 2 }}>
-                              Due {new Date(a.due_date).toLocaleDateString()}
+                              Due {formatDateTimeHcm(a.due_date)}
                             </div>
                           )}
                         </div>

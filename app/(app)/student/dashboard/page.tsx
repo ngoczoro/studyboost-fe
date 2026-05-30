@@ -1,15 +1,13 @@
 import { verifySession } from "@/lib/session"
 import { redirect } from "next/navigation"
 import { listMyEnrollments } from "@/lib/api/enrollments"
-import {
-  getStudentAssignments,
-  getSubmission, getGrade,
-  submissions, grades,
-} from "@/lib/mock-data"
+import { listStudentAssignmentRows } from "@/lib/api/assignments"
+import { getStudentAverageGrade } from "@/lib/api/grades"
 import { PageHeader, StatCard, Card, EmptyState } from "@/components/ui/primitives"
 import { CourseGlyph } from "@/components/ui/course-glyph"
 import Link from "next/link"
 import { ApiError } from "@/lib/api-client"
+import { formatDateTimeHcm } from "@/lib/datetime-format"
 
 export default async function StudentDashboardPage() {
   const session = await verifySession()
@@ -18,32 +16,18 @@ export default async function StudentDashboardPage() {
   const now = new Date()
 
   try {
-    const enrollments = await listMyEnrollments("ACTIVE")
-    const myAssignments = getStudentAssignments(session.id)
+    const [enrollments, assignmentRows, avgGrade] = await Promise.all([
+      listMyEnrollments("ACTIVE"),
+      listStudentAssignmentRows(),
+      getStudentAverageGrade(),
+    ])
 
-    const upcoming = myAssignments.filter(a => {
-      if (!a.due_date) return false
-      const due = new Date(a.due_date)
-      const sub = getSubmission(a.id, session.id)
-      return due > now && !sub
-    }).sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
-
-    const overdue = myAssignments.filter(a => {
-      if (!a.due_date) return false
-      const due = new Date(a.due_date)
-      const sub = getSubmission(a.id, session.id)
-      return due < now && !sub
+    const upcoming = assignmentRows.filter(a => {
+      if (!a.dueDate) return false
+      return new Date(a.dueDate) > now && a.status === "open"
     })
 
-    const mySubmissions = submissions.filter(s => s.student_id === session.id)
-    const myGrades = mySubmissions
-      .map(s => grades.find(g => g.submission_id === s.id))
-      .filter(Boolean) as (typeof grades)[0][]
-
-    const avgGrade =
-      myGrades.length > 0
-        ? (myGrades.reduce((sum, g) => sum + g.score, 0) / myGrades.length).toFixed(1)
-        : "—"
+    const overdue = assignmentRows.filter(a => a.status === "overdue")
 
     const firstEnrollment = enrollments[0]
     const continueCourse = firstEnrollment?.course ?? null
@@ -67,7 +51,7 @@ export default async function StudentDashboardPage() {
           <StatCard label="Enrolled courses" value={enrollments.length} />
           <StatCard label="Upcoming" value={upcoming.length} />
           <StatCard label="Overdue" value={overdue.length} />
-          <StatCard label="Avg grade" value={avgGrade} />
+          <StatCard label="Avg grade" value={avgGrade != null ? avgGrade.toFixed(1) : "—"} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
@@ -85,20 +69,11 @@ export default async function StudentDashboardPage() {
                     border: "1px solid var(--color-border)",
                     background: "var(--color-surface-2)",
                     cursor: "pointer",
-                    transition: "background .15s",
                   }}
                 >
                   <CourseGlyph course={continueCourse} size={44} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        fontSize: 14,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {continueCourse.title}
                     </div>
                     {continueTeacher && (
@@ -131,9 +106,7 @@ export default async function StudentDashboardPage() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {upcoming.slice(0, 4).map(a => {
-                  const enrollment = enrollments.find(e => e.course_id === a.course_id)
-                  const course = enrollment?.course
-                  const due = new Date(a.due_date!)
+                  const due = new Date(a.dueDate!)
                   const daysLeft = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
                   return (
                     <Link
@@ -153,22 +126,15 @@ export default async function StudentDashboardPage() {
                         }}
                       >
                         <div style={{ minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 500,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
+                          <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {a.title}
                           </div>
-                          {course && (
-                            <div style={{ fontSize: 11, color: "var(--color-fg-muted)" }}>
-                              {course.title}
-                            </div>
-                          )}
+                          <div style={{ fontSize: 11, color: "var(--color-fg-muted)" }}>
+                            {a.course.title}
+                            {a.dueDate && (
+                              <> · Due {formatDateTimeHcm(a.dueDate)}</>
+                            )}
+                          </div>
                         </div>
                         <span
                           style={{

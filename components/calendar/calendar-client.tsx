@@ -1,21 +1,37 @@
 "use client"
 
 import { useState } from "react"
-import { Card, Modal } from "@/components/ui/primitives"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { Card, Modal, toast } from "@/components/ui/primitives"
+import { formatDueDateForApi } from "@/lib/datetime-picker"
 import { CourseGlyph } from "@/components/ui/course-glyph"
 import type { Course } from "@/lib/types"
+import type { BackendPersonalEventResponse } from "@/lib/api/types"
 
-interface CalendarEvent {
+export interface CalendarAssignmentEvent {
   id: string
   date: string
   title: string
-  type: "assignment" | "personal"
+  type: "assignment"
   course?: Course
-  assignmentId?: number
+  assignmentId: number
 }
 
+export interface CalendarPersonalEvent {
+  id: string
+  date: string
+  title: string
+  type: "personal"
+  eventId: number
+}
+
+export type CalendarEvent = CalendarAssignmentEvent | CalendarPersonalEvent
+
 interface Props {
-  events: CalendarEvent[]
+  role: "student" | "teacher"
+  assignmentEvents: CalendarAssignmentEvent[]
+  personalEvents: CalendarPersonalEvent[]
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -33,19 +49,42 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-export function StudentCalendarClient({ events }: Props) {
+function assignmentHref(role: Props["role"], assignmentId: number): string {
+  return role === "teacher"
+    ? `/teacher/assignments/${assignmentId}`
+    : `/student/assignments/${assignmentId}`
+}
+
+function toDateKey(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+function mapPersonalEvent(ev: BackendPersonalEventResponse): CalendarPersonalEvent {
+  return {
+    id: `personal-${ev.id}`,
+    date: ev.eventDate,
+    title: ev.title,
+    type: "personal",
+    eventId: ev.id,
+  }
+}
+
+export function CalendarClient({ role, assignmentEvents, personalEvents: initialPersonal }: Props) {
+  const router = useRouter()
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
-  const [personalEvents, setPersonalEvents] = useState<CalendarEvent[]>([])
-  const [addOpen, setAddOpen] = useState(false)
-  const [newEventTitle, setNewEventTitle] = useState("")
+  const [personalEvents, setPersonalEvents] = useState(initialPersonal)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<CalendarPersonalEvent | null>(null)
+  const [title, setTitle] = useState("")
+  const [saving, setSaving] = useState(false)
 
-  const allEvents = [...events, ...personalEvents]
+  const allEvents: CalendarEvent[] = [...assignmentEvents, ...personalEvents]
 
   function eventsForDay(day: number) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    const dateStr = toDateKey(year, month, day)
     return allEvents.filter(e => e.date.startsWith(dateStr))
   }
 
@@ -65,32 +104,93 @@ export function StudentCalendarClient({ events }: Props) {
     ...Array(firstDay).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
-
   while (cells.length % 7 !== 0) cells.push(null)
 
   const selectedDayEvents = selectedDay ? eventsForDay(selectedDay) : []
 
-  function handleAddPersonalEvent(e: React.FormEvent) {
+  function openCreateForm() {
+    setEditingEvent(null)
+    setTitle("")
+    setFormOpen(true)
+  }
+
+  function openEditForm(ev: CalendarPersonalEvent) {
+    setEditingEvent(ev)
+    setTitle(ev.title)
+    setFormOpen(true)
+  }
+
+  function closeForm() {
+    setFormOpen(false)
+    setEditingEvent(null)
+    setTitle("")
+  }
+
+  async function savePersonalEvent(e: React.FormEvent) {
     e.preventDefault()
-    if (!newEventTitle.trim() || !selectedDay) return
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`
-    setPersonalEvents(prev => [
-      ...prev,
-      {
-        id: `personal-${Date.now()}`,
-        date: dateStr,
-        title: newEventTitle.trim(),
-        type: "personal",
-      },
-    ])
-    setNewEventTitle("")
-    setAddOpen(false)
+    if (!title.trim() || !selectedDay) return
+
+    const dateStr = toDateKey(year, month, selectedDay)
+    const eventDate = formatDueDateForApi(`${dateStr}T12:00`)
+
+    setSaving(true)
+    try {
+      if (editingEvent) {
+        const res = await fetch(`/api/events/${editingEvent.eventId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: title.trim(), eventDate }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? "Update failed")
+        const updated = mapPersonalEvent(data.event as BackendPersonalEventResponse)
+        setPersonalEvents(prev => prev.map(p => (p.eventId === editingEvent.eventId ? updated : p)))
+        toast("Event updated", "success")
+      } else {
+        const res = await fetch("/api/users/me/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: title.trim(), eventDate }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? "Create failed")
+        const created = mapPersonalEvent(data.event as BackendPersonalEventResponse)
+        setPersonalEvents(prev => [...prev, created])
+        toast("Event created", "success")
+      }
+      closeForm()
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Save failed", "error")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removePersonalEvent(ev: CalendarPersonalEvent) {
+    if (!window.confirm(`Delete "${ev.title}"?`)) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/events/${ev.eventId}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Delete failed")
+      setPersonalEvents(prev => prev.filter(p => p.eventId !== ev.eventId))
+      toast("Event deleted", "success")
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Delete failed", "error")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleAssignmentClick(assignmentId: number) {
+    router.push(assignmentHref(role, assignmentId))
   }
 
   return (
     <>
       <Card style={{ padding: 24 }}>
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
           <button
             type="button"
@@ -111,7 +211,6 @@ export function StudentCalendarClient({ events }: Props) {
           </button>
         </div>
 
-        {/* Day labels */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
           {DAY_NAMES.map(d => (
             <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.04em", padding: "4px 0" }}>
@@ -120,7 +219,6 @@ export function StudentCalendarClient({ events }: Props) {
           ))}
         </div>
 
-        {/* Cells */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
           {cells.map((day, idx) => {
             const isToday = day !== null && year === today.getFullYear() && month === today.getMonth() && day === today.getDate()
@@ -136,19 +234,11 @@ export function StudentCalendarClient({ events }: Props) {
                   background: day ? "var(--color-surface-2)" : "transparent",
                   border: isToday ? "2px solid var(--color-primary-600)" : "1px solid transparent",
                   cursor: day ? "pointer" : "default",
-                  transition: "background .12s",
                 }}
               >
                 {day && (
                   <>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: isToday ? 700 : 400,
-                        color: isToday ? "var(--color-primary-600)" : "var(--color-fg)",
-                        marginBottom: 4,
-                      }}
-                    >
+                    <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 400, color: isToday ? "var(--color-primary-600)" : "var(--color-fg)", marginBottom: 4 }}>
                       {day}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -171,9 +261,7 @@ export function StudentCalendarClient({ events }: Props) {
                         </div>
                       ))}
                       {dayEvents.length > 2 && (
-                        <div style={{ fontSize: 10, color: "var(--color-fg-muted)" }}>
-                          +{dayEvents.length - 2} more
-                        </div>
+                        <div style={{ fontSize: 10, color: "var(--color-fg-muted)" }}>+{dayEvents.length - 2} more</div>
                       )}
                     </div>
                   </>
@@ -183,7 +271,6 @@ export function StudentCalendarClient({ events }: Props) {
           })}
         </div>
 
-        {/* Legend */}
         <div style={{ display: "flex", gap: 16, marginTop: 16, justifyContent: "flex-end" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--color-fg-muted)" }}>
             <div style={{ width: 10, height: 10, borderRadius: 2, background: "var(--color-primary-50)", border: "1px solid var(--color-primary-200)" }} />
@@ -196,10 +283,9 @@ export function StudentCalendarClient({ events }: Props) {
         </div>
       </Card>
 
-      {/* Day detail modal */}
       <Modal
         open={selectedDay !== null}
-        onClose={() => { setSelectedDay(null); setAddOpen(false); setNewEventTitle("") }}
+        onClose={() => { setSelectedDay(null); closeForm() }}
         title={selectedDay ? `${MONTH_NAMES[month]} ${selectedDay}, ${year}` : ""}
         width={420}
       >
@@ -228,22 +314,68 @@ export function StudentCalendarClient({ events }: Props) {
                     📅
                   </div>
                 )}
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
-                  {ev.course && (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {ev.type === "assignment" ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAssignmentClick(ev.assignmentId)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "var(--color-primary-600)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      {ev.title}
+                    </button>
+                  ) : (
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
+                  )}
+                  {ev.type === "assignment" && ev.course && (
                     <div style={{ fontSize: 11, color: "var(--color-fg-muted)" }}>{ev.course.title}</div>
                   )}
+                  {ev.type === "assignment" && (
+                    <Link
+                      href={assignmentHref(role, ev.assignmentId)}
+                      style={{ fontSize: 11, color: "var(--color-primary-600)", textDecoration: "none" }}
+                    >
+                      Open assignment →
+                    </Link>
+                  )}
                 </div>
+                {ev.type === "personal" && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(ev)}
+                      style={{ fontSize: 12, border: "1px solid var(--color-border)", borderRadius: 6, padding: "4px 8px", background: "var(--color-surface)", cursor: "pointer" }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removePersonalEvent(ev)}
+                      disabled={saving}
+                      style={{ fontSize: 12, border: "1px solid var(--color-border)", borderRadius: 6, padding: "4px 8px", background: "var(--color-surface)", cursor: "pointer", color: "#dc2626" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
 
-          {addOpen ? (
-            <form onSubmit={handleAddPersonalEvent} style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          {formOpen ? (
+            <form onSubmit={savePersonalEvent} style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <input
                 autoFocus
-                value={newEventTitle}
-                onChange={e => setNewEventTitle(e.target.value)}
+                value={title}
+                onChange={e => setTitle(e.target.value)}
                 placeholder="Event title…"
                 style={{
                   flex: 1,
@@ -258,13 +390,14 @@ export function StudentCalendarClient({ events }: Props) {
               />
               <button
                 type="submit"
-                style={{ padding: "8px 14px", background: "var(--color-primary-600)", color: "#fff", border: "none", borderRadius: "var(--radius-md)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                disabled={saving || !title.trim()}
+                style={{ padding: "8px 14px", background: "var(--color-primary-600)", color: "#fff", border: "none", borderRadius: "var(--radius-md)", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}
               >
-                Add
+                {saving ? "…" : editingEvent ? "Save" : "Add"}
               </button>
               <button
                 type="button"
-                onClick={() => { setAddOpen(false); setNewEventTitle("") }}
+                onClick={closeForm}
                 style={{ padding: "8px 10px", background: "none", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", fontSize: 13, cursor: "pointer", color: "var(--color-fg)" }}
               >
                 Cancel
@@ -273,7 +406,7 @@ export function StudentCalendarClient({ events }: Props) {
           ) : (
             <button
               type="button"
-              onClick={() => setAddOpen(true)}
+              onClick={openCreateForm}
               style={{
                 marginTop: 4,
                 padding: "8px 14px",

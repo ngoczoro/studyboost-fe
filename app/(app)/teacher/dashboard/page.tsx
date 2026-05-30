@@ -2,7 +2,10 @@ import { verifySession } from "@/lib/session"
 import { redirect } from "next/navigation"
 import { listCourses } from "@/lib/api/courses"
 import { countActiveEnrollments } from "@/lib/api/enrollments"
-import { users, assignments, submissions, grades } from "@/lib/mock-data"
+import {
+  listTeacherAssignmentRows,
+  listPendingTeacherSubmissions,
+} from "@/lib/api/assignments"
 import { Card, StatCard, PageHeader, EmptyState } from "@/components/ui/primitives"
 import { CourseGlyph } from "@/components/ui/course-glyph"
 import { BookIcon, UsersIcon, ClipboardCheckIcon, CheckIcon } from "@/components/ui/icons"
@@ -15,24 +18,16 @@ export default async function TeacherDashboardPage() {
   if (!session || session.role !== "teacher") redirect("/login")
 
   try {
-    const myCourses = await listCourses({ teacherId: session.id })
+    const [myCourses, myAssignments, pendingGrading] = await Promise.all([
+      listCourses({ teacherId: session.id }),
+      listTeacherAssignmentRows(session.id),
+      listPendingTeacherSubmissions(session.id),
+    ])
+
     const enrollmentCounts = await Promise.all(
       myCourses.map(c => countActiveEnrollments(c.id)),
     )
     const totalStudents = enrollmentCounts.reduce((sum, n) => sum + n, 0)
-
-    const myAssignments = assignments.filter(a => myCourses.some(c => c.id === a.course_id))
-    const pendingGrading = submissions.filter(s =>
-      myAssignments.some(a => a.id === s.assignment_id) &&
-      !grades.some(g => g.submission_id === s.id),
-    )
-
-    const pendingWithMeta = pendingGrading.map(s => {
-      const assignment = myAssignments.find(a => a.id === s.assignment_id)!
-      const course = myCourses.find(c => c.id === assignment.course_id)!
-      const student = users.find(u => u.id === s.student_id)
-      return { submission: s, assignment, course, studentName: student?.full_name ?? "Unknown" }
-    })
 
     return (
       <>
@@ -86,11 +81,11 @@ export default async function TeacherDashboardPage() {
 
           <Card>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Submissions to grade</h2>
-            {pendingWithMeta.length === 0 ? (
+            {pendingGrading.length === 0 ? (
               <p style={{ fontSize: 13, color: "var(--color-fg-muted)", margin: 0 }}>All caught up!</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {pendingWithMeta.map(({ submission, assignment, course, studentName }) => (
+                {pendingGrading.map(({ submission, assignment, courseName, studentName }) => (
                   <Link
                     key={submission.id}
                     href={`/teacher/assignments/${assignment.id}`}
@@ -103,10 +98,10 @@ export default async function TeacherDashboardPage() {
                   >
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-fg)" }}>{studentName}</div>
                     <div style={{ fontSize: 12, color: "var(--color-fg-muted)", marginTop: 2 }}>
-                      {assignment.title} · {course.title}
+                      {assignment.title} · {courseName}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--color-fg-muted)", marginTop: 2 }}>
-                      {relative(submission.submitted_at)}
+                      {submission.submittedAt ? relative(submission.submittedAt) : "Recently submitted"}
                     </div>
                   </Link>
                 ))}

@@ -3,10 +3,9 @@ import { redirect, notFound } from "next/navigation"
 import { getCourseById } from "@/lib/api/courses"
 import { listMyEnrollments } from "@/lib/api/enrollments"
 import { getCourseCurriculum } from "@/lib/api/sections"
-import {
-  getCourseAssignments,
-  getSubmission, getGrade, getCoursePosts, comments, users,
-} from "@/lib/mock-data"
+import { listAssignmentsInCourse, getMySubmissions } from "@/lib/api/assignments"
+import { computeAssignmentStatus, mapBackendSubmission } from "@/lib/api/assignment-mappers"
+import { getCoursePosts, comments, users } from "@/lib/mock-data"
 import { PageHeader, Card, EmptyState } from "@/components/ui/primitives"
 import { CourseDetailClient } from "./course-detail-client"
 import { ApiError } from "@/lib/api-client"
@@ -36,14 +35,16 @@ export default async function StudentCourseDetailPage({ params }: { params: Prom
   const teacher = course.teacher
   const now = new Date()
 
-  const assignments = getCourseAssignments(courseId).map(a => {
-    const sub = getSubmission(a.id, session.id)
-    const grade = sub ? getGrade(sub.id) : undefined
-    let status: "open" | "submitted" | "graded" | "overdue" = "open"
-    if (grade) status = "graded"
-    else if (sub) status = "submitted"
-    else if (a.due_date && new Date(a.due_date) < now) status = "overdue"
-    return { ...a, submission: sub ? { ...sub, grade: grade ?? undefined } : undefined, status }
+  const [assignmentList, mySubmissions] = await Promise.all([
+    listAssignmentsInCourse(courseId),
+    getMySubmissions(),
+  ])
+
+  const assignments = assignmentList.map(a => {
+    const subRaw = mySubmissions.find(s => s.assignmentId === a.id && s.isFinal !== false)
+    const submission = subRaw ? mapBackendSubmission(subRaw) : undefined
+    const status = computeAssignmentStatus(a, subRaw, now)
+    return { ...a, submission, status }
   })
 
   const rawPosts = getCoursePosts(courseId)

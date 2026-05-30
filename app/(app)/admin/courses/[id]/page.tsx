@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation"
 import { getCourseById } from "@/lib/api/courses"
 import { countActiveEnrollments } from "@/lib/api/enrollments"
 import { getCourseCurriculum } from "@/lib/api/sections"
-import { getCourseAssignments } from "@/lib/mock-data"
+import { listAssignmentsInCourse } from "@/lib/api/assignments"
 import { AdminCourseDetailClient } from "./admin-course-detail-client"
 
 export default async function AdminCourseDetailPage({
@@ -21,12 +21,11 @@ export default async function AdminCourseDetailPage({
   const course = await getCourseById(courseId)
   if (!course) notFound()
 
-  const [sections, enrolledCount] = await Promise.all([
+  const [sections, enrolledCount, assignments] = await Promise.all([
     getCourseCurriculum(courseId),
     countActiveEnrollments(courseId),
+    listAssignmentsInCourse(courseId),
   ])
-
-  const assignments = getCourseAssignments(courseId)
 
   return (
     <AdminCourseDetailClient

@@ -28,6 +28,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Dashboard",    href: "/teacher/dashboard",   icon: <HomeIcon size={18} /> },
     { label: "My Courses",   href: "/teacher/courses",     icon: <BookIcon size={18} /> },
     { label: "Assignments",  href: "/teacher/assignments", icon: <ClipboardCheckIcon size={18} /> },
+    { label: "Calendar",       href: "/teacher/calendar",    icon: <CalendarIcon size={18} /> },
     { label: "Students",     href: "/teacher/students",    icon: <UsersIcon size={18} /> },
     { label: "Discussion",   href: "/teacher/posts",       icon: <CommentIcon size={18} /> },
   ],

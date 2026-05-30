@@ -1,25 +1,26 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { PageHeader, Card, EmptyState, Tabs } from "@/components/ui/primitives"
-import { CourseGlyph } from "@/components/ui/course-glyph"
-import Link from "next/link"
-import type { Course } from "@/lib/types"
+import { useState } from "react";
+import { PageHeader, Card, EmptyState, Tabs } from "@/components/ui/primitives";
+import { CourseGlyph } from "@/components/ui/course-glyph";
+import Link from "next/link";
+import type { Course } from "@/lib/types";
+import { formatDateTimeHcm } from "@/lib/datetime-format";
 
-type AssignmentStatus = "open" | "submitted" | "graded" | "overdue"
+type AssignmentStatus = "open" | "submitted" | "graded" | "overdue";
 
 interface AssignmentRow {
-  id: number
-  title: string
-  dueDate?: string
-  maxScore: number
-  score?: number
-  status: AssignmentStatus
-  course: Course
+  id: number;
+  title: string;
+  dueDate?: string;
+  maxScore: number;
+  score?: number;
+  status: AssignmentStatus;
+  course: Course;
 }
 
 interface Props {
-  assignments: AssignmentRow[]
+  assignments: AssignmentRow[];
 }
 
 const TABS = [
@@ -28,26 +29,27 @@ const TABS = [
   { label: "Submitted", value: "submitted" },
   { label: "Graded", value: "graded" },
   { label: "Overdue", value: "overdue" },
-]
+];
 
 const STATUS_COLOR: Record<AssignmentStatus, string> = {
   open: "var(--color-primary-600)",
   submitted: "#7c3aed",
   graded: "#15803d",
   overdue: "#dc2626",
-}
+};
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   open: "Open",
   submitted: "Submitted",
   graded: "Graded",
   overdue: "Overdue",
-}
+};
 
 export function StudentAssignmentsClient({ assignments }: Props) {
-  const [tab, setTab] = useState("all")
+  const [tab, setTab] = useState("all");
 
-  const filtered = tab === "all" ? assignments : assignments.filter(a => a.status === tab)
+  const filtered =
+    tab === "all" ? assignments : assignments.filter((a) => a.status === tab);
 
   return (
     <>
@@ -60,17 +62,22 @@ export function StudentAssignmentsClient({ assignments }: Props) {
 
       <div style={{ marginTop: 16 }}>
         {filtered.length === 0 ? (
-          <EmptyState title={`No ${tab === "all" ? "" : tab} assignments`} description="Nothing to show here." />
+          <EmptyState
+            title={`No ${tab === "all" ? "" : tab} assignments`}
+            description="Nothing to show here."
+          />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtered.map(a => (
+            {filtered.map((a) => (
               <Link
                 key={a.id}
                 href={`/student/assignments/${a.id}`}
                 style={{ textDecoration: "none", color: "inherit" }}
               >
                 <Card style={{ padding: "14px 16px", cursor: "pointer" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 14 }}
+                  >
                     <CourseGlyph course={a.course} size={40} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
@@ -84,9 +91,16 @@ export function StudentAssignmentsClient({ assignments }: Props) {
                       >
                         {a.title}
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--color-fg-muted)", marginTop: 2 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--color-fg-muted)",
+                          marginTop: 2,
+                        }}
+                      >
                         {a.course.title}
-                        {a.dueDate && ` · Due ${new Date(a.dueDate).toLocaleDateString()}`}
+                        {a.dueDate &&
+                          ` · Due ${formatDateTimeHcm(a.dueDate)}`}
                       </div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -101,7 +115,12 @@ export function StudentAssignmentsClient({ assignments }: Props) {
                         {STATUS_LABEL[a.status]}
                       </div>
                       {a.status === "graded" && a.score !== undefined && (
-                        <div style={{ fontSize: 12, color: "var(--color-fg-muted)" }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "var(--color-fg-muted)",
+                          }}
+                        >
                           {a.score}/{a.maxScore}
                         </div>
                       )}
@@ -114,5 +133,5 @@ export function StudentAssignmentsClient({ assignments }: Props) {
         )}
       </div>
     </>
-  )
+  );
 }

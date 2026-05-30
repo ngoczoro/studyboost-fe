@@ -12,6 +12,7 @@ import { Card, PageHeader, StatusBadge, Badge } from "@/components/ui/primitives
 import { CourseGlyph } from "@/components/ui/course-glyph"
 import { VideoPlayer } from "@/components/lesson/video-player"
 import { MarkdownContent } from "@/components/lesson/markdown-content"
+import { DocumentViewer } from "@/components/lesson/document-viewer"
 import { date_ } from "@/lib/fmt"
 
 interface AssignmentSummary {
@@ -57,12 +58,14 @@ function LessonPreview({ item }: { item: SectionItem }) {
 
   if (item.type === "file") {
     return (
-      <div style={{ marginTop: 10, fontSize: 13, color: "var(--color-fg-muted)" }}>
-        <div><strong>File:</strong> {item.document_name ?? "Unnamed document"}</div>
-        <div><strong>Size:</strong> {formatFileSize(item.document_size)}</div>
-        <div><strong>Uploaded:</strong> {formatUploadDate(item.document_uploaded_at)}</div>
-        {item.document_mime_type && <div><strong>Type:</strong> {item.document_mime_type}</div>}
-      </div>
+      <DocumentViewer
+        title={item.title}
+        documentUrl={item.document_url}
+        documentName={item.document_name}
+        documentSize={item.document_size}
+        documentMimeType={item.document_mime_type}
+        documentUploadedAt={item.document_uploaded_at}
+      />
     )
   }
 

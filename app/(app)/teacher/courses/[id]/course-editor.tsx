@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import type { Course, Assignment, Enrollment, SectionItem } from "@/lib/types"
 import type { SectionWithItems } from "@/lib/api/sections"
-import {
-  assignments as allAssignments, submissions, grades,
-} from "@/lib/mock-data"
+import type { CourseAssignmentRow } from "./page"
 import {
   sectionItemToLessonRequest,
   toCreateItemPayload,
@@ -20,13 +18,22 @@ import {
   ClipboardCheckIcon, PlusIcon,
 } from "@/components/ui/icons"
 import { date_ } from "@/lib/fmt"
+import { formatDateTimeHcm } from "@/lib/datetime-format"
 import { relative } from "@/lib/fmt"
+import {
+  defaultDueDateLocal,
+  isoToDateTimeLocal,
+  minDueDateLocal,
+  formatDueDateForApi,
+} from "@/lib/datetime-picker"
 
 interface Props {
   course: Course
   enrolledCount: number
   enrollments: Enrollment[]
   initialSections: SectionWithItems[]
+  initialAssignments: CourseAssignmentRow[]
+  serverNowIso: string
 }
 
 const ITEM_META: Record<string, { bg: string; Icon: React.FC<{ size?: number }> }> = {
@@ -43,47 +50,81 @@ interface AssignmentEditModalProps {
   courseId: number
   assignment?: Assignment | null
   onSaved?: () => void
+  serverNowIso: string
 }
 
-function buildDefaultAssignmentForm() {
+function buildDefaultAssignmentForm(serverNowIso: string) {
+  const now = new Date(serverNowIso)
   return {
     title: "",
     description: "",
-    due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16),
-    max_score: 100,
+    due_date: defaultDueDateLocal(now),
+    max_score: 10,
   }
 }
 
-function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: AssignmentEditModalProps) {
+function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved, serverNowIso }: AssignmentEditModalProps) {
   const isEdit = !!assignment
-  const [form, setForm] = useState(buildDefaultAssignmentForm)
+  const serverNow = new Date(serverNowIso)
+  const minDue = minDueDateLocal(serverNow)
+  const [form, setForm] = useState(() => buildDefaultAssignmentForm(serverNowIso))
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) {
-      setForm(buildDefaultAssignmentForm())
+      setForm(buildDefaultAssignmentForm(serverNowIso))
       return
     }
+    const now = new Date(serverNowIso)
     if (assignment) {
+      const due = assignment.due_date ? new Date(assignment.due_date) : null
       setForm({
         title: assignment.title,
         description: assignment.description ?? "",
-        due_date: assignment.due_date?.slice(0, 16) ?? "",
+        due_date: due && due > now ? isoToDateTimeLocal(assignment.due_date!) : defaultDueDateLocal(now),
         max_score: assignment.max_score,
       })
     } else {
-      setForm(buildDefaultAssignmentForm())
+      setForm(buildDefaultAssignmentForm(serverNowIso))
     }
-  }, [open, assignment])
+  }, [open, assignment, serverNowIso])
 
   const handle = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }))
 
   const submit = async () => {
-    if (!form.title) return
-    await new Promise(r => setTimeout(r, 300))
-    toast(isEdit ? "Assignment updated" : "Assignment created", "success")
-    onSaved?.()
-    onClose()
+    if (!form.title.trim()) return
+    setSaving(true)
+    try {
+      const body = {
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        dueDate: form.due_date ? formatDueDateForApi(form.due_date) : undefined,
+        maxScore: Math.min(10, Math.max(0, Number(form.max_score) || 10)),
+        allowLateSubmission: assignment?.allow_late_submission ?? true,
+      }
+
+      const res = await fetch(
+        isEdit && assignment
+          ? `/api/assignments/${assignment.id}`
+          : `/api/courses/${courseId}/assignments`,
+        {
+          method: isEdit ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Save failed")
+
+      toast(isEdit ? "Assignment updated" : "Assignment created", "success")
+      onSaved?.()
+      onClose()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Save failed", "error")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -102,18 +143,20 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved }: A
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Due date</label>
-            <input type="datetime-local" value={form.due_date} onChange={handle("due_date")}
+            <input type="datetime-local" value={form.due_date} onChange={handle("due_date")} min={minDue}
               style={{ width: "100%", height: 38, padding: "0 10px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Max score</label>
-            <input type="number" value={form.max_score} onChange={handle("max_score")}
+            <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Max score (0–10)</label>
+            <input type="number" value={form.max_score} onChange={handle("max_score")} min={0} max={10} step={0.1}
               style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
           <ButtonSmall variant="ghost" onClick={onClose}>Cancel</ButtonSmall>
-          <ButtonSmall onClick={submit} disabled={!form.title}>{isEdit ? "Save changes" : "Create"}</ButtonSmall>
+          <ButtonSmall onClick={submit} disabled={!form.title || saving}>
+            {saving ? "Saving…" : isEdit ? "Save changes" : "Create"}
+          </ButtonSmall>
         </div>
       </div>
     </Modal>
@@ -144,13 +187,34 @@ function SectionItemRow({ item, onEdit, onDelete }: { item: SectionItem; onEdit:
 }
 
 /* ─── Assignments sub-tab ─── */
-function CourseAssignmentsTab({ courseId, onNew, onEdit }: { courseId: number; onNew: () => void; onEdit: (a: Assignment) => void }) {
+function CourseAssignmentsTab({
+  assignments,
+  onNew,
+  onEdit,
+  onDeleted,
+}: {
+  assignments: CourseAssignmentRow[]
+  onNew: () => void
+  onEdit: (a: Assignment) => void
+  onDeleted: () => void
+}) {
   const router = useRouter()
-  const courseAssignments = allAssignments.filter(a => a.course_id === courseId)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
-  const remove = (a: Assignment) => {
+  const remove = async (a: Assignment) => {
     if (!window.confirm(`Delete "${a.title}" and all its submissions?`)) return
-    toast("Assignment deleted", "success")
+    setDeletingId(a.id)
+    try {
+      const res = await fetch(`/api/assignments/${a.id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Delete failed")
+      toast("Assignment deleted", "success")
+      onDeleted()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Delete failed", "error")
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -169,29 +233,28 @@ function CourseAssignmentsTab({ courseId, onNew, onEdit }: { courseId: number; o
             </tr>
           </thead>
           <tbody>
-            {courseAssignments.map(a => {
-              const subs = submissions.filter(s => s.assignment_id === a.id)
-              return (
+            {assignments.map(a => (
                 <tr key={a.id} style={{ borderTop: "1px solid var(--color-border)", cursor: "pointer" }}
                   onClick={() => router.push(`/teacher/assignments/${a.id}`)}>
                   <td style={{ padding: "14px 16px" }}>
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
                     <div style={{ fontSize: 12, color: "var(--color-fg-muted)" }}>Max {a.max_score} pts</div>
                   </td>
-                  <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--color-fg-muted)" }}>{date_(a.due_date ?? "")}</td>
+                  <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--color-fg-muted)" }}>{a.due_date ? formatDateTimeHcm(a.due_date) : "—"}</td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                    <Badge tone={subs.length ? "blue" : "default"}>{subs.length}</Badge>
+                    <Badge tone={a.submissionCount ? "blue" : "default"}>{a.submissionCount}</Badge>
                   </td>
                   <td style={{ padding: "10px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                     <IconButton onClick={() => onEdit(a)} title="Edit"><EditIcon size={16} /></IconButton>
-                    <IconButton onClick={() => remove(a)} title="Delete"><TrashIcon size={16} /></IconButton>
+                    <IconButton onClick={() => { if (deletingId == null) void remove(a) }} title="Delete">
+                      <TrashIcon size={16} />
+                    </IconButton>
                   </td>
                 </tr>
-              )
-            })}
+              ))}
           </tbody>
         </table>
-        {courseAssignments.length === 0 && (
+        {assignments.length === 0 && (
           <div style={{ padding: 32 }}>
             <EmptyState icon={<ClipboardCheckIcon size={24} />} title="No assignments yet" description="Click 'New assignment' to create one." />
           </div>
@@ -247,10 +310,11 @@ function CourseStudentsTab({ enrollments }: { enrollments: Enrollment[] }) {
 }
 
 /* ─── Main editor component ─── */
-export function CourseEditor({ course: initialCourse, enrolledCount, enrollments, initialSections }: Props) {
+export function CourseEditor({ course: initialCourse, enrolledCount, enrollments, initialSections, initialAssignments, serverNowIso }: Props) {
   const router = useRouter()
   const [course, setCourse] = useState(initialCourse)
   const [sections, setSections] = useState(initialSections)
+  const [assignments, setAssignments] = useState(initialAssignments)
   const [activeTab, setActiveTab] = useState("content")
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false)
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null)
@@ -265,8 +329,9 @@ export function CourseEditor({ course: initialCourse, enrolledCount, enrollments
 
   useEffect(() => { setCourse(initialCourse) }, [initialCourse])
   useEffect(() => { setSections(initialSections) }, [initialSections])
+  useEffect(() => { setAssignments(initialAssignments) }, [initialAssignments])
 
-  const courseAssignments = allAssignments.filter(a => a.course_id === course.id)
+  const refreshAssignments = () => router.refresh()
 
   async function patchCourse(body: Record<string, unknown>) {
     const res = await fetch(`/api/courses/${course.id}`, {
@@ -496,7 +561,7 @@ export function CourseEditor({ course: initialCourse, enrolledCount, enrollments
           onChange={setActiveTab}
           tabs={[
             { label: "Content", value: "content" },
-            { label: `Assignments (${courseAssignments.length})`, value: "assignments" },
+            { label: `Assignments (${assignments.length})`, value: "assignments" },
             { label: `Students (${enrolledCount})`, value: "students" },
             { label: "Settings", value: "settings" },
           ]}
@@ -570,7 +635,12 @@ export function CourseEditor({ course: initialCourse, enrolledCount, enrollments
       )}
 
       {activeTab === "assignments" && (
-        <CourseAssignmentsTab courseId={course.id} onNew={openNewAssignment} onEdit={openEditAssignment} />
+        <CourseAssignmentsTab
+          assignments={assignments}
+          onNew={openNewAssignment}
+          onEdit={openEditAssignment}
+          onDeleted={refreshAssignments}
+        />
       )}
 
       {activeTab === "students" && <CourseStudentsTab enrollments={enrollments} />}
@@ -633,7 +703,8 @@ export function CourseEditor({ course: initialCourse, enrolledCount, enrollments
         onClose={() => setAssignmentModalOpen(false)}
         courseId={course.id}
         assignment={editingAssignment}
-        onSaved={() => {}}
+        onSaved={refreshAssignments}
+        serverNowIso={serverNowIso}
       />
       <LessonEditModal
         item={editingItem}
