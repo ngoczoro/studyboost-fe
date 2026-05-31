@@ -2,17 +2,14 @@ import { NextResponse } from "next/server"
 import { requireAccessToken } from "@/lib/api/authenticated"
 import { backendFetch, ApiError, parseErrorMessage } from "@/lib/api-client"
 
-export async function POST() {
+export async function GET() {
   try {
     const token = await requireAccessToken()
-    const res = await backendFetch("/api/notifications/read-all", {
-      method: "PUT",
-      accessToken: token,
-    })
+    const res = await backendFetch("/api/notifications/unread-count", { accessToken: token })
     if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
     return NextResponse.json(await res.json())
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ error: err.message }, { status: err.status })
-    return NextResponse.json({ error: "Failed to mark all notifications as read" }, { status: 500 })
+    return NextResponse.json({ unreadCount: 0 })
   }
 }
