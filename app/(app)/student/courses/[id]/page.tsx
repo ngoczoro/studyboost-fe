@@ -5,7 +5,7 @@ import { listMyEnrollments } from "@/lib/api/enrollments"
 import { getCourseCurriculum } from "@/lib/api/sections"
 import { listAssignmentsInCourse, getMySubmissions } from "@/lib/api/assignments"
 import { computeAssignmentStatus, mapBackendSubmission } from "@/lib/api/assignment-mappers"
-import { getCoursePosts, comments, users } from "@/lib/mock-data"
+import { getPostsInCourse } from "@/lib/api/posts"
 import { PageHeader, Card, EmptyState } from "@/components/ui/primitives"
 import { CourseDetailClient } from "./course-detail-client"
 import { ApiError } from "@/lib/api-client"
@@ -23,6 +23,7 @@ export default async function StudentCourseDetailPage({ params }: { params: Prom
   const isEnrolled = enrollments.some(e => e.course_id === courseId && e.status === "ACTIVE")
   if (!isEnrolled) redirect("/student/courses")
 
+  const now = new Date()
   let sections: Awaited<ReturnType<typeof getCourseCurriculum>> = []
   let sectionsError: string | null = null
 
@@ -33,7 +34,6 @@ export default async function StudentCourseDetailPage({ params }: { params: Prom
   }
 
   const teacher = course.teacher
-  const now = new Date()
 
   const [assignmentList, mySubmissions] = await Promise.all([
     listAssignmentsInCourse(courseId),
@@ -47,11 +47,12 @@ export default async function StudentCourseDetailPage({ params }: { params: Prom
     return { ...a, submission, status }
   })
 
-  const rawPosts = getCoursePosts(courseId)
+  const rawPosts = await getPostsInCourse(courseId).catch(() => [])
   const posts = rawPosts.map(p => ({
-    ...p,
-    authorName: users.find(u => u.id === p.author_id)?.full_name ?? "Unknown",
-    commentCount: comments.filter(c => c.post_id === p.id).length,
+    id: p.id, course_id: p.course_id, author_id: p.author_id,
+    title: p.title, content: p.content, is_pinned: p.is_pinned,
+    created_at: p.created_at, updated_at: p.updated_at,
+    authorName: p.authorName, commentCount: p.commentCount,
   }))
 
   return (

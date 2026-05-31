@@ -90,9 +90,7 @@ export default async function StudentDashboardPage() {
             ) : (
               <p style={{ fontSize: 14, color: "var(--color-fg-muted)", margin: 0 }}>
                 You haven&apos;t enrolled in any courses yet.{" "}
-                <Link href="/student/courses" style={{ color: "var(--color-primary-600)" }}>
-                  Browse courses
-                </Link>
+                <Link href="/student/courses" style={{ color: "var(--color-primary-600)" }}>Browse courses</Link>
               </p>
             )}
           </Card>
@@ -100,31 +98,15 @@ export default async function StudentDashboardPage() {
           <Card>
             <h3 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Coming up</h3>
             {upcoming.length === 0 ? (
-              <p style={{ fontSize: 14, color: "var(--color-fg-muted)", margin: 0 }}>
-                No upcoming assignments. You&apos;re all caught up!
-              </p>
+              <p style={{ fontSize: 14, color: "var(--color-fg-muted)", margin: 0 }}>No upcoming assignments. You&apos;re all caught up!</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {upcoming.slice(0, 4).map(a => {
                   const due = new Date(a.dueDate!)
                   const daysLeft = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
                   return (
-                    <Link
-                      key={a.id}
-                      href={`/student/assignments/${a.id}`}
-                      style={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          borderRadius: "var(--radius-md)",
-                          border: "1px solid var(--color-border)",
-                          gap: 8,
-                        }}
-                      >
+                    <Link key={a.id} href={`/student/assignments/${a.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", gap: 8 }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {a.title}
@@ -135,26 +117,20 @@ export default async function StudentDashboardPage() {
                               <> · Due {formatDateTimeHcm(a.dueDate)}</>
                             )}
                           </div>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: daysLeft <= 2 ? "#dc2626" : "var(--color-fg-muted)",
-                            flexShrink: 0,
-                          }}
-                        >
+                        </div >
+                        <span style={{ fontSize: 11, fontWeight: 600, color: daysLeft <= 2 ? "#dc2626" : "var(--color-fg-muted)", flexShrink: 0 }}>
                           {daysLeft === 0 ? "Due today" : daysLeft === 1 ? "Due tomorrow" : `${daysLeft}d left`}
                         </span>
-                      </div>
-                    </Link>
+                      </div >
+                    </Link >
                   )
-                })}
-              </div>
+                })
+                }
+              </div >
             )}
-          </Card>
-        </div>
-      </div>
+          </Card >
+        </div >
+      </div >
     )
   } catch (err) {
     const message = err instanceof ApiError ? err.message : "Failed to load dashboard"

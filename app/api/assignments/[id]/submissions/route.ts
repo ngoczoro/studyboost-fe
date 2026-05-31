@@ -27,8 +27,27 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 export async function POST(req: NextRequest, context: RouteContext) {
   const { id } = await context.params
   try {
-    const formData = await req.formData()
-    const submission = await submitAssignmentServer(Number(id), formData)
+    const clientFormData = await req.formData()
+    const backendFormData = new FormData()
+
+    const note = clientFormData.get("note")
+    if (note !== null) {
+      backendFormData.append("note", note)
+    }
+
+    const keepFileIds = clientFormData.get("keepFileIds")
+    if (keepFileIds !== null) {
+      backendFormData.append("keepFileIds", keepFileIds)
+    }
+
+    const files = clientFormData.getAll("files")
+    for (const file of files) {
+      if (file instanceof File) {
+        backendFormData.append("files", file)
+      }
+    }
+
+    const submission = await submitAssignmentServer(Number(id), backendFormData)
     return NextResponse.json(
       { submission: mapBackendSubmission(submission) },
       { status: 201 },
