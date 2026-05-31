@@ -5,16 +5,14 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { SegmentedControl } from "@/components/ui/segmented-control"
-import { MailIcon, LockIcon } from "@/components/ui/icons"
+import { Input, PasswordInput } from "@/components/ui/input"
+import { MailIcon } from "@/components/ui/icons"
 import { toast } from "@/components/ui/primitives"
 
 export function LoginCard() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState("student")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
@@ -26,7 +24,7 @@ export function LoginCard() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Sign in failed")
@@ -73,7 +71,7 @@ export function LoginCard() {
           id="email"
           label="Email Address"
           type="email"
-          placeholder="hello@edulms.com"
+          placeholder="hello@studyboost.com"
           value={email}
           onChange={e => setEmail(e.target.value)}
           icon={<MailIcon size={16} />}
@@ -82,34 +80,21 @@ export function LoginCard() {
         />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <Input
+          <PasswordInput
             id="password"
             label="Password"
-            type="password"
             placeholder="••••••••"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            icon={<LockIcon size={16} />}
             autoComplete="current-password"
             required
           />
           <div style={{ textAlign: "right" }}>
-            <a href="#forgot" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-primary-600)", textDecoration: "none" }}>
+            <Link href="/forgot-password" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-primary-600)", textDecoration: "none" }}>
               Forgot password?
-            </a>
+            </Link>
           </div>
         </div>
-
-        <SegmentedControl
-          label="Login As (Demo)"
-          value={role}
-          onChange={setRole}
-          options={[
-            { label: "Student", value: "student" },
-            { label: "Teacher", value: "teacher" },
-            { label: "Admin", value: "admin" },
-          ]}
-        />
       </div>
 
       {error && (

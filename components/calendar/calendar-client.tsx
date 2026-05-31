@@ -232,7 +232,11 @@ export function CalendarClient({ role, assignmentEvents, personalEvents: initial
                   borderRadius: "var(--radius-md)",
                   padding: 6,
                   background: day ? "var(--color-surface-2)" : "transparent",
-                  border: isToday ? "2px solid var(--color-primary-600)" : "1px solid transparent",
+                  border: isToday 
+                    ? "2px solid var(--color-primary-600)" 
+                    : day 
+                    ? "1px solid var(--color-border)" 
+                    : "1px solid transparent",
                   cursor: day ? "pointer" : "default",
                 }}
               >

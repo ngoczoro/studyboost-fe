@@ -1,22 +1,78 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { SearchIcon, BellIcon, CheckIcon } from "@/components/ui/icons"
 import { Avatar } from "@/components/ui/primitives"
 import { relative } from "@/lib/fmt"
-import type { Notification } from "@/lib/types"
+import { useNotificationStream } from "@/lib/hooks/useNotificationStream"
+
+interface BackendNotif {
+  id: number
+  type: string
+  data?: string | null
+  isRead: boolean
+  createdAt?: string | null
+}
+
+function parseMessage(n: BackendNotif): string {
+  try {
+    const p = JSON.parse(n.data ?? "") as { message?: string }
+    return p.message ?? n.data ?? ""
+  } catch {
+    return n.data ?? ""
+  }
+}
+
+function parseLink(n: BackendNotif): string | null {
+  try {
+    const p = JSON.parse(n.data ?? "") as { link?: string }
+    return p.link || null
+  } catch {
+    return null
+  }
+}
+
+const TYPE_ICON: Record<string, string> = {
+  GRADE_RELEASED: "📊",
+  NEW_ASSIGNMENT: "📝",
+  SUBMISSION_RECEIVED: "📥",
+  NEW_POST: "💬",
+  NEW_COMMENT: "🗨️",
+  ENROLLMENT_UPDATED: "🎓",
+  SYSTEM_ALERT: "🔔",
+}
 
 interface TopbarProps {
   user: { id: number; full_name: string; role: string }
-  notifications: Notification[]
+  unreadCount: number
 }
 
-export function Topbar({ user, notifications }: TopbarProps) {
+export function Topbar({ user, unreadCount: initialUnread }: TopbarProps) {
+  const router = useRouter()
   const [bellOpen, setBellOpen] = useState(false)
-  const [localNotifs, setLocalNotifs] = useState(notifications)
+  const [notifs, setNotifs] = useState<BackendNotif[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [unread, setUnread] = useState(initialUnread)
   const bellRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { setLocalNotifs(notifications) }, [notifications])
+  // Real-time notifications via SSE
+  useNotificationStream((n) => {
+    setUnread(prev => prev + 1)
+    if (loaded) setNotifs(prev => [n, ...prev])
+  })
+
+  const loadNotifs = useCallback(() => {
+    fetch("/api/notifications")
+      .then(r => r.ok ? r.json() as Promise<BackendNotif[]> : Promise.resolve([]))
+      .then(data => { setNotifs(data); setLoaded(true); const u = data.filter(n => !n.isRead).length; setUnread(u) })
+      .catch(() => setLoaded(true))
+  }, [])
+
+  useEffect(() => {
+    if (!bellOpen || loaded) return
+    loadNotifs()
+  }, [bellOpen, loaded, loadNotifs])
 
   useEffect(() => {
     if (!bellOpen) return
@@ -27,16 +83,25 @@ export function Topbar({ user, notifications }: TopbarProps) {
     return () => document.removeEventListener("mousedown", handler)
   }, [bellOpen])
 
-  const unread = localNotifs.filter(n => !n.is_read).length
-
   async function markAll() {
-    await fetch(`/api/notifications/mark-all`, { method: "POST", body: JSON.stringify({ userId: user.id }) })
-    setLocalNotifs(prev => prev.map(n => ({ ...n, is_read: true })))
+    await fetch("/api/notifications/mark-all", { method: "POST" })
+    setNotifs(prev => prev.map(n => ({ ...n, isRead: true })))
+    setUnread(0)
   }
 
   async function markOne(id: number) {
     await fetch(`/api/notifications/${id}/mark-read`, { method: "POST" })
-    setLocalNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
+    setUnread(prev => Math.max(0, prev - 1))
+  }
+
+  async function handleNotifClick(n: BackendNotif) {
+    if (!n.isRead) await markOne(n.id)
+    const link = parseLink(n)
+    if (link) {
+      setBellOpen(false)
+      router.push(link)
+    }
   }
 
   return (
@@ -75,17 +140,31 @@ export function Topbar({ user, notifications }: TopbarProps) {
             <BellIcon size={18} />
             {unread > 0 && (
               <span style={{
-                position: "absolute", top: 4, right: 4,
-                width: 8, height: 8, borderRadius: "50%",
+                position: "absolute",
+                top: unread > 9 ? 2 : 4,
+                right: unread > 9 ? 2 : 4,
+                minWidth: unread > 9 ? 18 : 16,
+                height: unread > 9 ? 18 : 16,
+                borderRadius: 999,
                 background: "#ef4444",
-              }} />
+                color: "#fff",
+                fontSize: 10,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 3px",
+                lineHeight: 1,
+              }}>
+                {unread > 99 ? "99+" : unread}
+              </span>
             )}
           </button>
 
           {bellOpen && (
             <div className="animate-sb-fade-in" style={{
               position: "absolute", right: 0, top: 46,
-              width: 340,
+              width: 360,
               background: "var(--color-surface)",
               borderRadius: "var(--radius-md)",
               boxShadow: "var(--shadow-dropdown)",
@@ -98,7 +177,16 @@ export function Topbar({ user, notifications }: TopbarProps) {
                 padding: "12px 16px",
                 borderBottom: "1px solid var(--color-border)",
               }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>Notifications</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>Notifications</span>
+                  {unread > 0 && (
+                    <span style={{
+                      background: "#ef4444", color: "#fff",
+                      fontSize: 11, fontWeight: 700,
+                      borderRadius: 999, padding: "1px 6px",
+                    }}>{unread}</span>
+                  )}
+                </div>
                 {unread > 0 && (
                   <button onClick={markAll} style={{
                     fontSize: 12, color: "var(--color-primary-600)",
@@ -109,27 +197,54 @@ export function Topbar({ user, notifications }: TopbarProps) {
                   </button>
                 )}
               </div>
-              <div style={{ maxHeight: 320, overflowY: "auto" }}>
-                {localNotifs.length === 0 ? (
-                  <p style={{ padding: 16, color: "var(--color-fg-muted)", fontSize: 14, margin: 0 }}>No notifications</p>
+
+              <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                {!loaded ? (
+                  <p style={{ padding: 16, color: "var(--color-fg-muted)", fontSize: 14, margin: 0 }}>Loading…</p>
+                ) : notifs.length === 0 ? (
+                  <p style={{ padding: 16, color: "var(--color-fg-muted)", fontSize: 14, margin: 0 }}>No notifications yet</p>
                 ) : (
-                  localNotifs.slice(0, 6).map(n => (
-                    <div
-                      key={n.id}
-                      onClick={() => markOne(n.id)}
-                      style={{
-                        padding: "12px 16px",
-                        borderBottom: "1px solid var(--color-border)",
-                        background: n.is_read ? "transparent" : "var(--color-primary-50)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: n.is_read ? 400 : 600 }}>{n.message}</p>
-                      <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--color-fg-muted)" }}>{relative(n.created_at)}</p>
-                    </div>
-                  ))
+                  notifs.slice(0, 8).map(n => {
+                    const link = parseLink(n)
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => handleNotifClick(n)}
+                        style={{
+                          padding: "12px 16px",
+                          borderBottom: "1px solid var(--color-border)",
+                          background: n.isRead ? "transparent" : "var(--color-primary-50,#f0fdf4)",
+                          cursor: link || !n.isRead ? "pointer" : "default",
+                          display: "flex",
+                          gap: 10,
+                          alignItems: "flex-start",
+                        }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = n.isRead ? "var(--color-surface-2)" : "var(--color-primary-100,#dcfce7)" }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = n.isRead ? "transparent" : "var(--color-primary-50,#f0fdf4)" }}
+                      >
+                        <span style={{ fontSize: 16, lineHeight: 1.2, flexShrink: 0, marginTop: 2 }}>
+                          {TYPE_ICON[n.type] ?? "🔔"}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: n.isRead ? 400 : 600, wordBreak: "break-word" }}>
+                            {parseMessage(n)}
+                          </p>
+                          <p style={{ margin: "3px 0 0", fontSize: 11, color: "var(--color-fg-muted)" }}>
+                            {relative(n.createdAt ?? new Date().toISOString())}
+                          </p>
+                        </div>
+                        {!n.isRead && (
+                          <div style={{
+                            width: 7, height: 7, borderRadius: 999,
+                            background: "#ef4444", flexShrink: 0, marginTop: 5,
+                          }} />
+                        )}
+                      </div>
+                    )
+                  })
                 )}
               </div>
+
               <div style={{ borderTop: "1px solid var(--color-border)", padding: "10px 16px" }}>
                 <a
                   href={`/${user.role}/notifications`}

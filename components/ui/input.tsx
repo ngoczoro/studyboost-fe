@@ -1,6 +1,7 @@
 "use client"
 
 import { InputHTMLAttributes, ReactNode, useState } from "react"
+import { EyeIcon, EyeOffIcon } from "@/components/ui/icons"
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
@@ -63,5 +64,54 @@ export function Input({ label, icon, rightSlot, error, id, style, ...rest }: Inp
       </div>
       {error && <span style={{ fontSize: 13, color: "#dc2626" }}>{error}</span>}
     </div>
+  )
+}
+
+// ── Password Input với nút reveal ──────────────────────────────────────
+
+interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
+  label?: string
+  icon?: ReactNode
+  error?: string
+  id?: string
+}
+
+export function PasswordInput({ label, icon, error, id, style, ...rest }: PasswordInputProps) {
+  const [show, setShow] = useState(false)
+
+  const revealBtn = (
+    <button
+      type="button"
+      onClick={() => setShow(v => !v)}
+      aria-label={show ? "Hide password" : "Show password"}
+      style={{
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        padding: 4,
+        color: "var(--color-fg-muted)",
+        display: "flex",
+        alignItems: "center",
+        borderRadius: 4,
+        transition: "color .15s",
+      }}
+      onMouseEnter={e => (e.currentTarget.style.color = "var(--color-fg)")}
+      onMouseLeave={e => (e.currentTarget.style.color = "var(--color-fg-muted)")}
+    >
+      {show ? <EyeOffIcon size={17} /> : <EyeIcon size={17} />}
+    </button>
+  )
+
+  return (
+    <Input
+      id={id}
+      label={label}
+      type={show ? "text" : "password"}
+      icon={icon}
+      rightSlot={revealBtn}
+      error={error}
+      style={{ paddingRight: 44, ...style }}
+      {...rest}
+    />
   )
 }
