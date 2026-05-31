@@ -1,7 +1,7 @@
 import { verifySession } from "@/lib/session"
 import { redirect, notFound } from "next/navigation"
 import { getCourseById } from "@/lib/api/courses"
-import { countActiveEnrollments } from "@/lib/api/enrollments"
+import { listCourseStudents } from "@/lib/api/enrollments"
 import { getCourseCurriculum } from "@/lib/api/sections"
 import { listAssignmentsInCourse } from "@/lib/api/assignments"
 import { AdminCourseDetailClient } from "./admin-course-detail-client"
@@ -21,17 +21,20 @@ export default async function AdminCourseDetailPage({
   const course = await getCourseById(courseId)
   if (!course) notFound()
 
-  const [sections, enrolledCount, assignments] = await Promise.all([
+  const [sections, enrollments, assignments] = await Promise.all([
     getCourseCurriculum(courseId),
-    countActiveEnrollments(courseId),
+    listCourseStudents(courseId),
     listAssignmentsInCourse(courseId),
   ])
+
+  const enrolledCount = enrollments.filter(e => e.status === "ACTIVE").length
 
   return (
     <AdminCourseDetailClient
       course={course}
       sections={sections}
       enrolledCount={enrolledCount}
+      enrollments={enrollments}
       assignmentCount={assignments.length}
       assignments={assignments.map(a => ({
         id: a.id,

@@ -1,16 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { notifications } from "@/lib/mock-data"
+import { useState, useEffect, useCallback } from "react"
 import { Card, PageHeader, toast } from "@/components/ui/primitives"
 import { ButtonSmall } from "@/components/ui/button-small"
 import { Input } from "@/components/ui/input"
 import { relative } from "@/lib/fmt"
 
 const BROADCAST_TYPES = [
+  { value: "announcement", label: "Announcement" },
   { value: "course_published", label: "Course published" },
-  { value: "announcement",     label: "Announcement" },
-  { value: "maintenance",      label: "Maintenance notice" },
+  { value: "maintenance", label: "Maintenance notice" },
 ]
 
 interface BroadcastForm {
@@ -20,11 +19,45 @@ interface BroadcastForm {
   message: string
 }
 
+interface HistoryItem {
+  id: number
+  data: string
+  createdAt: string
+}
+
 const EMPTY_FORM: BroadcastForm = { type: "announcement", title: "", course: "", message: "" }
+
+function parseBroadcastMessage(data: string): string {
+  try {
+    const parsed = JSON.parse(data)
+    return parsed?.message ?? data
+  } catch {
+    return data
+  }
+}
 
 export default function AdminBroadcastsPage() {
   const [form, setForm] = useState<BroadcastForm>(EMPTY_FORM)
   const [sending, setSending] = useState(false)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(true)
+
+  const loadHistory = useCallback(async () => {
+    setLoadingHistory(true)
+    try {
+      const res = await fetch("/api/admin/notifications/broadcasts")
+      if (res.ok) {
+        const data: HistoryItem[] = await res.json()
+        setHistory(data)
+      }
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadHistory()
+  }, [loadHistory])
 
   const handle = (k: keyof BroadcastForm) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -33,13 +66,24 @@ export default function AdminBroadcastsPage() {
   const send = async () => {
     if (sending || !form.title.trim()) return
     setSending(true)
-    await new Promise(r => setTimeout(r, 600))
-    setSending(false)
-    toast("Notification sent to all users", "success")
-    setForm(EMPTY_FORM)
+    try {
+      const res = await fetch("/api/admin/notifications/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to send" }))
+        toast(err.error ?? "Failed to send broadcast", "error")
+        return
+      }
+      toast("Notification sent to all users", "success")
+      setForm(EMPTY_FORM)
+      await loadHistory()
+    } finally {
+      setSending(false)
+    }
   }
-
-  const recent = notifications.slice(0, 6)
 
   return (
     <>
@@ -101,7 +145,7 @@ export default function AdminBroadcastsPage() {
                 fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6,
                 color: "var(--color-fg-muted)",
               }}>
-                Message
+                Message (optional)
               </label>
               <textarea
                 value={form.message}
@@ -137,26 +181,33 @@ export default function AdminBroadcastsPage() {
           </div>
         </Card>
 
-        {/* Recent activity */}
+        {/* Broadcast history */}
         <Card>
-          <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>Recent activity</h2>
-          {recent.length === 0 ? (
-            <p style={{ fontSize: 14, color: "var(--color-fg-muted)" }}>No recent notifications.</p>
+          <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>Recent broadcasts</h2>
+          {loadingHistory ? (
+            <p style={{ fontSize: 14, color: "var(--color-fg-muted)" }}>Loading…</p>
+          ) : history.length === 0 ? (
+            <p style={{ fontSize: 14, color: "var(--color-fg-muted)" }}>
+              No broadcasts sent yet.
+            </p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-              {recent.map((n, i) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {history.map(item => (
                 <div
-                  key={n.id}
+                  key={item.id}
                   style={{
-                    padding: "12px 0",
-                    borderBottom: i < recent.length - 1 ? "1px solid var(--color-border)" : "none",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--color-border)",
+                    background: "var(--color-surface-raised, var(--color-surface))",
                   }}
                 >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>
-                    {n.type.replace(/_/g, " ")}
-                  </div>
-                  <div style={{ fontSize: 14, lineHeight: 1.45, marginBottom: 4 }}>{n.message}</div>
-                  <div style={{ fontSize: 11, color: "var(--color-fg-muted)" }}>{relative(n.created_at)}</div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "var(--color-fg)" }}>
+                    {parseBroadcastMessage(item.data)}
+                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--color-fg-muted)" }}>
+                    {relative(item.createdAt)}
+                  </p>
                 </div>
               ))}
             </div>

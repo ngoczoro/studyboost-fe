@@ -1,91 +1,160 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
-import { users as initialUsers } from "@/lib/mock-data"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import {
   Card, PageHeader, Avatar, Badge, StatusBadge, EmptyState, Modal, IconButton, Tabs,
   toast,
 } from "@/components/ui/primitives"
 import { ButtonSmall } from "@/components/ui/button-small"
 import { Input } from "@/components/ui/input"
-import { SegmentedControl } from "@/components/ui/segmented-control"
 import { SearchIcon, PlusIcon, EditIcon, TrashIcon } from "@/components/ui/icons"
-import type { User, Role } from "@/lib/types"
 
-const ROLE_TONE: Record<string, "purple" | "blue" | "green"> = {
-  admin: "purple",
-  teacher: "blue",
-  student: "green",
+// ── Types ──────────────────────────────────────────────────────────────
+
+interface AdminUser {
+  id: number
+  email: string
+  fullName: string
+  avatarUrl?: string | null
+  isActive: boolean
+  roles: string[]
 }
 
-const ROLE_TABS = [
-  { label: "All", value: "all" },
-  { label: "Admin", value: "admin" },
-  { label: "Teacher", value: "teacher" },
-  { label: "Student", value: "student" },
-]
+interface RoleOption {
+  name: string       // uppercase: "ADMIN", "TEACHER", "MODERATOR"
+  label: string      // capitalized: "Admin", "Teacher", "Moderator"
+  value: string      // lowercase: "admin", "teacher", "moderator"
+}
+
+function toUiUser(u: AdminUser) {
+  return {
+    id: u.id,
+    full_name: u.fullName,
+    email: u.email,
+    avatar_url: u.avatarUrl,
+    is_active: u.isActive,
+    // Store lowercase for filter matching; always falls back to "student"
+    role: u.roles?.[0]?.toLowerCase() ?? "student",
+    created_at: new Date().toISOString(),
+  }
+}
+
+type UiUser = ReturnType<typeof toUiUser>
+
+// ── Color helpers ──────────────────────────────────────────────────────
+
+type BadgeTone = "purple" | "blue" | "green" | "orange" | "yellow" | "red" | "default"
+
+const PREDEFINED_TONES: Record<string, BadgeTone> = {
+  admin: "purple", teacher: "blue", student: "green",
+}
+const EXTRA_TONES: BadgeTone[] = ["orange", "yellow", "red", "default"]
+
+function getRoleTone(roleLower: string, allRoles: RoleOption[]): BadgeTone {
+  return PREDEFINED_TONES[roleLower]
+    ?? EXTRA_TONES[allRoles.findIndex(r => r.value === roleLower) % EXTRA_TONES.length]
+}
+
+// ── Role select ────────────────────────────────────────────────────────
+
+function RoleSelect({
+  value,
+  onChange,
+  roles,
+}: {
+  value: string
+  onChange: (v: string) => void
+  roles: RoleOption[]
+}) {
+  return (
+    <div>
+      <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8, color: "var(--color-fg-muted)" }}>
+        Role
+      </label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: "100%", height: 38, padding: "0 10px", borderRadius: 8,
+          border: "1px solid var(--color-border)", fontSize: 14,
+          background: "var(--color-surface)", color: "var(--color-fg)",
+          cursor: "pointer",
+        }}
+      >
+        {roles.map(r => (
+          <option key={r.value} value={r.value}>{r.label}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+// ── Modals ─────────────────────────────────────────────────────────────
 
 function UserCreateModal({
   open,
   onClose,
   onCreated,
+  roles,
 }: {
   open: boolean
   onClose: () => void
-  onCreated: (u: User) => void
+  onCreated: (u: UiUser) => void
+  roles: RoleOption[]
 }) {
-  const [form, setForm] = useState({ full_name: "", email: "", role: "student" as Role })
+  const defaultRole = roles.find(r => r.value === "student")?.value ?? roles[0]?.value ?? "student"
+  const [form, setForm] = useState({ full_name: "", email: "", role: defaultRole })
+  const [saving, setSaving] = useState(false)
 
-  const handle = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  // Reset default role if roles list loads after modal was already open
+  useEffect(() => {
+    if (roles.length > 0 && !roles.find(r => r.value === form.role)) {
+      setForm(prev => ({ ...prev, role: defaultRole }))
+    }
+  }, [roles]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handle = (k: "full_name" | "email") => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }))
 
-  const submit = () => {
+  const submit = async () => {
     if (!form.full_name.trim() || !form.email.trim()) return
-    const newUser: User = {
-      id: Date.now(),
-      ...form,
-      is_active: true,
-      created_at: new Date().toISOString(),
+    setSaving(true)
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.full_name,
+          email: form.email,
+          role: form.role.toUpperCase(),
+          password: "StudyBoost@2025",
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to create user")
+      onCreated(toUiUser(data as AdminUser))
+      toast(`Invited ${form.full_name}`, "success")
+      setForm({ full_name: "", email: "", role: defaultRole })
+      onClose()
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to create user", "error")
+    } finally {
+      setSaving(false)
     }
-    onCreated(newUser)
-    toast(`Invited ${form.full_name}`, "success")
-    setForm({ full_name: "", email: "", role: "student" })
-    onClose()
   }
 
   return (
     <Modal open={open} onClose={onClose} title="Invite new user">
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Input
-          label="Full name"
-          value={form.full_name}
-          onChange={handle("full_name")}
-          placeholder="Jane Doe"
-        />
-        <Input
-          label="Email"
-          type="email"
-          value={form.email}
-          onChange={handle("email")}
-          placeholder="jane@studyboost.com"
-        />
-        <div>
-          <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8, color: "var(--color-fg-muted)" }}>
-            Role
-          </label>
-          <SegmentedControl
-            value={form.role}
-            onChange={v => setForm(prev => ({ ...prev, role: v as Role }))}
-            options={[
-              { label: "Student", value: "student" },
-              { label: "Teacher", value: "teacher" },
-              { label: "Admin", value: "admin" },
-            ]}
-          />
-        </div>
+        <Input label="Full name" value={form.full_name} onChange={handle("full_name")} placeholder="Jane Doe" />
+        <Input label="Email" type="email" value={form.email} onChange={handle("email")} placeholder="jane@studyboost.com" />
+        <RoleSelect value={form.role} onChange={v => setForm(prev => ({ ...prev, role: v }))} roles={roles} />
+        <p style={{ margin: 0, fontSize: 12, color: "var(--color-fg-muted)" }}>
+          Default password: <code>StudyBoost@2025</code> — user should change it on first login.
+        </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 8 }}>
           <ButtonSmall variant="ghost" onClick={onClose}>Cancel</ButtonSmall>
-          <ButtonSmall onClick={submit}>Send invite</ButtonSmall>
+          <ButtonSmall onClick={submit} disabled={saving}>{saving ? "Creating…" : "Create user"}</ButtonSmall>
         </div>
       </div>
     </Modal>
@@ -96,68 +165,68 @@ function UserEditModal({
   user,
   onClose,
   onSaved,
+  adminCount,
+  roles,
 }: {
-  user: User | null
+  user: UiUser | null
   onClose: () => void
-  onSaved: (u: User) => void
+  onSaved: (u: UiUser) => void
+  adminCount: number
+  roles: RoleOption[]
 }) {
-  const [form, setForm] = useState({
-    full_name: "",
-    email: "",
-    role: "student" as Role,
-    is_active: true,
-  })
+  const [form, setForm] = useState({ full_name: "", email: "", role: "student", is_active: true })
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (user) {
-      setForm({
-        full_name: user.full_name,
-        email: user.email,
-        role: user.role,
-        is_active: user.is_active,
-      })
+      setForm({ full_name: user.full_name, email: user.email, role: user.role, is_active: user.is_active })
     }
   }, [user?.id])
 
   const handle = (k: "full_name" | "email") => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }))
 
-  const submit = () => {
+  // True khi user là admin duy nhất và đang bị đổi role hoặc deactivate
+  const isLastAdminDemotion = user?.role === "admin" && adminCount <= 1 && form.role !== "admin"
+  const isLastAdminDeactivation = user?.role === "admin" && adminCount <= 1 && !form.is_active
+
+  const submit = async () => {
     if (!user) return
-    const updated: User = { ...user, ...form }
-    onSaved(updated)
-    toast(`Updated ${form.full_name}`, "success")
-    onClose()
+    if (!form.full_name.trim()) {
+      toast("Full name is required", "error")
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.full_name,
+          isActive: form.is_active,
+          role: form.role.toUpperCase(),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to update user")
+      onSaved(toUiUser(data as AdminUser))
+      toast(`Updated ${form.full_name}`, "success")
+      onClose()
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to update user", "error")
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const warn = isLastAdminDemotion || isLastAdminDeactivation
 
   return (
     <Modal open={!!user} onClose={onClose} title="Edit user">
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Input
-          label="Full name"
-          value={form.full_name}
-          onChange={handle("full_name")}
-        />
-        <Input
-          label="Email"
-          type="email"
-          value={form.email}
-          onChange={handle("email")}
-        />
-        <div>
-          <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8, color: "var(--color-fg-muted)" }}>
-            Role
-          </label>
-          <SegmentedControl
-            value={form.role}
-            onChange={v => setForm(prev => ({ ...prev, role: v as Role }))}
-            options={[
-              { label: "Student", value: "student" },
-              { label: "Teacher", value: "teacher" },
-              { label: "Admin", value: "admin" },
-            ]}
-          />
-        </div>
+        <Input label="Full name" value={form.full_name} onChange={handle("full_name")} />
+        <Input label="Email" type="email" value={form.email} onChange={handle("email")} disabled />
+        <RoleSelect value={form.role} onChange={v => setForm(prev => ({ ...prev, role: v }))} roles={roles} />
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
           <input
             type="checkbox"
@@ -166,21 +235,92 @@ function UserEditModal({
           />
           Account is active
         </label>
+
+        {warn && (
+          <div style={{
+            padding: "8px 12px",
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.25)",
+            borderRadius: 8,
+            fontSize: 12,
+            color: "#dc2626",
+            lineHeight: 1.5,
+          }}>
+            <strong>Warning:</strong> This is the only admin account.{" "}
+            {isLastAdminDemotion
+              ? "Changing their role will remove all admin access from the system."
+              : "Deactivating this account will lock out all admins."}
+            {" "}The server will reject this operation — promote another user to admin first.
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 8 }}>
           <ButtonSmall variant="ghost" onClick={onClose}>Cancel</ButtonSmall>
-          <ButtonSmall onClick={submit}>Save changes</ButtonSmall>
+          <ButtonSmall onClick={submit} disabled={saving || warn}>
+            {saving ? "Saving…" : "Save changes"}
+          </ButtonSmall>
         </div>
       </div>
     </Modal>
   )
 }
 
+// ── Main Page ──────────────────────────────────────────────────────────
+
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers)
+  const [users, setUsers] = useState<UiUser[]>([])
+  const [availableRoles, setAvailableRoles] = useState<RoleOption[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null)
   const [q, setQ] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [createOpen, setCreateOpen] = useState(false)
-  const [editing, setEditing] = useState<User | null>(null)
+  const [editing, setEditing] = useState<UiUser | null>(null)
+
+  const loadAll = useCallback(async () => {
+    try {
+      const [usersRes, rolesRes] = await Promise.all([
+        fetch("/api/admin/users?size=100"),
+        fetch("/api/admin/roles"),
+      ])
+      const usersData = await usersRes.json()
+      const rolesData: { name: string }[] = rolesRes.ok ? await rolesRes.json() : []
+
+      if (!usersRes.ok) throw new Error(usersData.error)
+      setUsers((usersData.users as AdminUser[]).map(toUiUser))
+      setAvailableRoles(
+        rolesData.map(r => ({
+          name: r.name,
+          label: r.name.charAt(0) + r.name.slice(1).toLowerCase(),
+          value: r.name.toLowerCase(),
+        }))
+      )
+    } catch {
+      toast("Failed to load users", "error")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // ID của admin đang đăng nhập — dùng để guard self-edit
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.json())
+      .then(data => { if (data?.id) setCurrentUserId(data.id) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  const adminCount = useMemo(
+    () => users.filter(u => u.role === "admin").length,
+    [users],
+  )
+
+  const roleTabs = useMemo(() => [
+    { label: "All", value: "all" },
+    ...availableRoles.map(r => ({ label: r.label, value: r.value })),
+  ], [availableRoles])
 
   const filtered = useMemo(() => {
     return users.filter(u => {
@@ -193,15 +333,43 @@ export default function AdminUsersPage() {
     })
   }, [users, q, roleFilter])
 
-  const toggleActive = (u: User) => {
-    setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: !x.is_active } : x))
-    toast(`${u.full_name} ${u.is_active ? "deactivated" : "activated"}`, u.is_active ? "error" : "success")
+  const toggleActive = async (u: UiUser) => {
+    // Guard: prevent deactivating the last admin on the frontend
+    if (u.role === "admin" && u.is_active && adminCount <= 1) {
+      toast("Cannot deactivate the last admin. Promote another user to admin first.", "error")
+      return
+    }
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !u.is_active }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to update user")
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: !u.is_active } : x))
+      toast(`${u.full_name} ${u.is_active ? "deactivated" : "activated"}`, u.is_active ? "error" : "success")
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to update user", "error")
+    }
   }
 
-  const remove = (u: User) => {
-    if (!confirm(`Permanently delete ${u.full_name}? This can't be undone.`)) return
-    setUsers(prev => prev.filter(x => x.id !== u.id))
-    toast(`${u.full_name} deleted`, "error")
+  const remove = async (u: UiUser) => {
+    // Guard: prevent removing the last admin on the frontend
+    if (u.role === "admin" && adminCount <= 1) {
+      toast("Cannot deactivate the last admin. Promote another user to admin first.", "error")
+      return
+    }
+    if (!confirm(`Deactivate ${u.full_name}? This will disable their account.`)) return
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Failed to deactivate user")
+      setUsers(prev => prev.filter(x => x.id !== u.id))
+      toast(`${u.full_name} deactivated`, "error")
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to deactivate user", "error")
+    }
   }
 
   return (
@@ -218,7 +386,6 @@ export default function AdminUsersPage() {
       />
 
       <Card style={{ padding: 0, overflow: "hidden" }}>
-        {/* Toolbar */}
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--color-border)", display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ flex: 1, maxWidth: 320 }}>
             <Input
@@ -228,11 +395,14 @@ export default function AdminUsersPage() {
               onChange={e => setQ(e.target.value)}
             />
           </div>
-          <Tabs tabs={ROLE_TABS} value={roleFilter} onChange={setRoleFilter} />
+          <Tabs tabs={roleTabs} value={roleFilter} onChange={setRoleFilter} />
         </div>
 
-        {/* Table */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ padding: "48px", textAlign: "center", color: "var(--color-fg-muted)", fontSize: 14 }}>
+            Loading users…
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{ padding: 48 }}>
             <EmptyState
               title="No users found"
@@ -273,48 +443,48 @@ export default function AdminUsersPage() {
                   onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-2)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
-                  {/* User */}
                   <td style={{ padding: "12px 20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Avatar name={u.full_name} size="md" src={u.avatar_url} />
+                      <Avatar name={u.full_name} size="md" src={u.avatar_url ?? undefined} />
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{u.full_name}</div>
                         <div style={{ fontSize: 13, color: "var(--color-fg-muted)" }}>{u.email}</div>
                       </div>
                     </div>
                   </td>
-
-                  {/* Role */}
                   <td style={{ padding: "12px 20px" }}>
-                    <Badge tone={ROLE_TONE[u.role]}>{u.role}</Badge>
+                    <Badge tone={getRoleTone(u.role, availableRoles)}>{u.role}</Badge>
                   </td>
-
-                  {/* Status */}
                   <td style={{ padding: "12px 20px" }}>
                     <StatusBadge status={u.is_active ? "active" : "inactive"} />
                   </td>
-
-                  {/* Joined */}
                   <td style={{ padding: "12px 20px", fontSize: 13, color: "var(--color-fg-muted)" }}>
                     {new Date(u.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </td>
-
-                  {/* Actions */}
                   <td style={{ padding: "12px 20px", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      <IconButton title="Edit user" onClick={() => setEditing(u)}>
-                        <EditIcon size={15} />
-                      </IconButton>
-                      <ButtonSmall
-                        variant={u.is_active ? "ghost" : "primary"}
-                        onClick={() => toggleActive(u)}
-                        style={{ height: 32, padding: "0 12px", fontSize: 12 }}
-                      >
-                        {u.is_active ? "Deactivate" : "Activate"}
-                      </ButtonSmall>
-                      <IconButton title="Delete user" onClick={() => remove(u)} style={{ color: "#dc2626" }}>
-                        <TrashIcon size={15} />
-                      </IconButton>
+                      {u.id === currentUserId ? (
+                        // Không cho sửa/xóa account của chính mình
+                        <span style={{ fontSize: 12, color: "var(--color-fg-muted)", fontStyle: "italic" }}>
+                          (you)
+                        </span>
+                      ) : (
+                        <>
+                          <IconButton title="Edit user" onClick={() => setEditing(u)}>
+                            <EditIcon size={15} />
+                          </IconButton>
+                          <ButtonSmall
+                            variant={u.is_active ? "ghost" : "primary"}
+                            onClick={() => toggleActive(u)}
+                            style={{ height: 32, padding: "0 12px", fontSize: 12 }}
+                          >
+                            {u.is_active ? "Deactivate" : "Activate"}
+                          </ButtonSmall>
+                          <IconButton title="Deactivate user" onClick={() => remove(u)} style={{ color: "#dc2626" }}>
+                            <TrashIcon size={15} />
+                          </IconButton>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -327,12 +497,15 @@ export default function AdminUsersPage() {
       <UserCreateModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={u => setUsers(prev => [...prev, u])}
+        onCreated={u => setUsers(prev => [u, ...prev])}
+        roles={availableRoles}
       />
       <UserEditModal
         user={editing}
         onClose={() => setEditing(null)}
         onSaved={updated => setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))}
+        adminCount={adminCount}
+        roles={availableRoles}
       />
     </>
   )

@@ -47,33 +47,31 @@ export function AdminCoursesClient({ initialCourses }: Props) {
     return courseList.filter(c => c.status.toLowerCase() === statusFilter)
   }, [courseList, statusFilter])
 
-  const approve = async (course: CourseWithMeta) => {
-    setUpdatingId(course.id)
-    try {
-      const updated = await updateCourseStatus(course, "PUBLISHED")
-      setCourseList(prev =>
-        prev.map(c => (c.id === course.id ? { ...c, ...updated, teacherName: c.teacherName, enrolled: c.enrolled } : c)),
-      )
-      toast("Course approved", "success")
-      router.refresh()
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Approve failed", "error")
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  const reject = async (course: CourseWithMeta) => {
+  const archive = async (course: CourseWithMeta) => {
     setUpdatingId(course.id)
     try {
       const updated = await updateCourseStatus(course, "ARCHIVED")
       setCourseList(prev =>
         prev.map(c => (c.id === course.id ? { ...c, ...updated, teacherName: c.teacherName, enrolled: c.enrolled } : c)),
       )
-      toast("Course rejected", "error")
-      router.refresh()
+      toast("Course archived", "success")
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Reject failed", "error")
+      toast(err instanceof Error ? err.message : "Archive failed", "error")
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const restore = async (course: CourseWithMeta) => {
+    setUpdatingId(course.id)
+    try {
+      const updated = await updateCourseStatus(course, "PUBLISHED")
+      setCourseList(prev =>
+        prev.map(c => (c.id === course.id ? { ...c, ...updated, teacherName: c.teacherName, enrolled: c.enrolled } : c)),
+      )
+      toast("Course restored", "success")
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Restore failed", "error")
     } finally {
       setUpdatingId(null)
     }
@@ -83,7 +81,7 @@ export function AdminCoursesClient({ initialCourses }: Props) {
     <>
       <PageHeader
         title="Course moderation"
-        subtitle="Approve, reject, or unpublish courses across the platform."
+        subtitle="View and manage all courses on the platform."
       />
 
       <div style={{ marginBottom: 20 }}>
@@ -142,24 +140,24 @@ export function AdminCoursesClient({ initialCourses }: Props) {
                 </Link>
               </div>
 
-              {c.status === "DRAFT" && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <ButtonSmall
-                    onClick={() => approve(c)}
-                    disabled={updatingId === c.id}
-                    style={{ flex: 1 }}
-                  >
-                    Approve
-                  </ButtonSmall>
-                  <ButtonSmall
-                    variant="danger"
-                    onClick={() => reject(c)}
-                    disabled={updatingId === c.id}
-                    style={{ flex: 1 }}
-                  >
-                    Reject
-                  </ButtonSmall>
-                </div>
+              {c.status === "PUBLISHED" && (
+                <ButtonSmall
+                  variant="ghost"
+                  onClick={() => archive(c)}
+                  disabled={updatingId === c.id}
+                  style={{ width: "100%" }}
+                >
+                  Archive
+                </ButtonSmall>
+              )}
+              {c.status === "ARCHIVED" && (
+                <ButtonSmall
+                  onClick={() => restore(c)}
+                  disabled={updatingId === c.id}
+                  style={{ width: "100%" }}
+                >
+                  Restore
+                </ButtonSmall>
               )}
             </Card>
           ))}

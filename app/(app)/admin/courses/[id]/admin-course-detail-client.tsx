@@ -1,14 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import type { Course, SectionItem } from "@/lib/types"
+import type { Course, SectionItem, Enrollment } from "@/lib/types"
 import type { SectionWithItems } from "@/lib/api/sections"
 import {
   formatFileSize,
   formatUploadDate,
   resolveMediaUrl,
 } from "@/lib/api/lesson-mappers"
-import { Card, PageHeader, StatusBadge, Badge } from "@/components/ui/primitives"
+import { Card, PageHeader, StatusBadge, Badge, Avatar } from "@/components/ui/primitives"
 import { CourseGlyph } from "@/components/ui/course-glyph"
 import { VideoPlayer } from "@/components/lesson/video-player"
 import { MarkdownContent } from "@/components/lesson/markdown-content"
@@ -26,6 +26,7 @@ interface Props {
   course: Course
   sections: SectionWithItems[]
   enrolledCount: number
+  enrollments: Enrollment[]
   assignmentCount: number
   assignments: AssignmentSummary[]
 }
@@ -80,6 +81,7 @@ export function AdminCourseDetailClient({
   course,
   sections,
   enrolledCount,
+  enrollments,
   assignmentCount,
   assignments,
 }: Props) {
@@ -201,6 +203,52 @@ export function AdminCourseDetailClient({
                 </span>
               </div>
             ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>
+          Enrolled students ({enrolledCount})
+        </div>
+        {enrollments.length === 0 ? (
+          <p style={{ margin: 0, color: "var(--color-fg-muted)", fontSize: 14 }}>
+            No students enrolled in this course yet.
+          </p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "var(--color-surface-2)", fontSize: 12, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  <th style={{ textAlign: "left", padding: "12px 16px" }}>Student</th>
+                  <th style={{ textAlign: "left", padding: "12px 16px" }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enrollments.map(e => {
+                  const student = e.student
+                  if (!student) return null
+                  return (
+                    <tr key={e.id} style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "12px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <Avatar name={student.full_name} size="sm" />
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 500 }}>{student.full_name}</div>
+                            <div style={{ fontSize: 12, color: "var(--color-fg-muted)" }}>{student.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px 16px" }}>
+                        <Badge tone={e.status === "ACTIVE" ? "green" : e.status === "COMPLETED" ? "blue" : "default"}>
+                          {e.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
