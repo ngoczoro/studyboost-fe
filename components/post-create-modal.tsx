@@ -33,11 +33,33 @@ export function PostCreateModal({ open, onClose, courseId, authorId, onCreated, 
   const submit = async () => {
     if (saving || !form.title.trim() || !form.content.trim()) return
     setSaving(true)
-    await new Promise(r => setTimeout(r, 400))
-    setSaving(false)
-    toast(isEdit ? "Post updated" : "Post published", "success")
-    onCreated()
-    onClose()
+    try {
+      let res: Response
+      if (isEdit && post) {
+        res = await fetch(`/api/posts/${post.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: form.title, content: form.content, isPinned: form.is_pinned }),
+        })
+      } else {
+        res = await fetch(`/api/courses/${courseId}/posts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: form.title, content: form.content, isPinned: form.is_pinned }),
+        })
+      }
+      if (!res.ok) {
+        const data = await res.json() as { error?: string }
+        throw new Error(data.error ?? "Failed")
+      }
+      toast(isEdit ? "Post updated" : "Post published", "success")
+      onCreated()
+      onClose()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to save post", "error")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

@@ -1,27 +1,41 @@
 import { verifySession } from "@/lib/session"
 import { redirect } from "next/navigation"
-import { getUserCourses, getCoursePosts, comments, users } from "@/lib/mock-data"
+import { listCourses } from "@/lib/api/courses"
+import { getPostsInCourse } from "@/lib/api/posts"
+import { ApiError } from "@/lib/api-client"
+import { Card, EmptyState, PageHeader } from "@/components/ui/primitives"
 import { TeacherPostsClient } from "./posts-client"
 
 export default async function TeacherPostsPage() {
   const session = await verifySession()
   if (!session || session.role !== "teacher") redirect("/login")
 
-  const myCourses = getUserCourses(session.id)
-  const postsWithMeta = myCourses.map(c => ({
-    courseId: c.id,
-    posts: getCoursePosts(c.id).map(p => ({
-      ...p,
-      authorName: users.find(u => u.id === p.author_id)?.full_name ?? "Unknown",
-      commentCount: comments.filter(c => c.post_id === p.id).length,
-    })),
-  }))
+  try {
+    const myCourses = await listCourses({ teacherId: session.id })
 
-  return (
-    <TeacherPostsClient
-      courses={myCourses}
-      postsByCourse={postsWithMeta}
-      teacherId={session.id}
-    />
-  )
+    const postsByCourse = await Promise.all(
+      myCourses.map(async c => ({
+        courseId: c.id,
+        posts: await getPostsInCourse(c.id),
+      })),
+    )
+
+    return (
+      <TeacherPostsClient
+        courses={myCourses}
+        postsByCourse={postsByCourse}
+        teacherId={session.id}
+      />
+    )
+  } catch (err) {
+    const message = err instanceof ApiError ? err.message : "Failed to load discussions"
+    return (
+      <>
+        <PageHeader title="Discussion" subtitle="Unable to load posts" />
+        <Card>
+          <EmptyState title="Could not load discussions" description={message} />
+        </Card>
+      </>
+    )
+  }
 }
