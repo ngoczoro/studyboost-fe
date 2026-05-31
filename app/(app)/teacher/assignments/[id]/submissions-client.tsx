@@ -189,14 +189,14 @@ export function SubmissionsClient({ assignment, courseName, submissions: initial
       prev.map(s =>
         s.id === sub.id
           ? {
-              ...s,
-              grade: {
-                id: grade.id,
-                score: grade.score,
-                feedback: grade.feedback,
-                graded_at: grade.graded_at ?? new Date().toISOString(),
-              },
-            }
+            ...s,
+            grade: {
+              id: grade.id,
+              score: grade.score,
+              feedback: grade.feedback,
+              graded_at: grade.graded_at ?? new Date().toISOString(),
+            },
+          }
           : s,
       ),
     )

@@ -37,9 +37,9 @@ interface Props {
 }
 
 const ITEM_META: Record<string, { bg: string; Icon: React.FC<{ size?: number }> }> = {
-  video:      { bg: "#fee2e2", Icon: PlayIcon },
-  file:       { bg: "#dbeafe", Icon: FileIcon },
-  text:       { bg: "var(--color-surface-2, #f1f5f9)", Icon: DocIcon },
+  video: { bg: "#fee2e2", Icon: PlayIcon },
+  file: { bg: "#dbeafe", Icon: FileIcon },
+  text: { bg: "var(--color-surface-2, #f1f5f9)", Icon: DocIcon },
   assignment: { bg: "#f3e8ff", Icon: ClipboardCheckIcon },
 }
 
@@ -60,6 +60,10 @@ function buildDefaultAssignmentForm(serverNowIso: string) {
     description: "",
     due_date: defaultDueDateLocal(now),
     max_score: 10,
+    allow_late_submission: true,
+    max_files: "" as string | number,
+    max_file_size_mb: "" as string | number,
+    allowed_file_types: "",
   }
 }
 
@@ -83,6 +87,10 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved, ser
         description: assignment.description ?? "",
         due_date: due && due > now ? isoToDateTimeLocal(assignment.due_date!) : defaultDueDateLocal(now),
         max_score: assignment.max_score,
+        allow_late_submission: assignment.allow_late_submission ?? true,
+        max_files: assignment.max_files ?? "",
+        max_file_size_mb: assignment.max_file_size_mb ?? "",
+        allowed_file_types: assignment.allowed_file_types ?? "",
       })
     } else {
       setForm(buildDefaultAssignmentForm(serverNowIso))
@@ -101,7 +109,10 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved, ser
         description: form.description.trim() || undefined,
         dueDate: form.due_date ? formatDueDateForApi(form.due_date) : undefined,
         maxScore: Math.min(10, Math.max(0, Number(form.max_score) || 10)),
-        allowLateSubmission: assignment?.allow_late_submission ?? true,
+        allowLateSubmission: form.allow_late_submission,
+        maxFiles: form.max_files !== "" ? Number(form.max_files) : undefined,
+        maxFileSizeMb: form.max_file_size_mb !== "" ? Number(form.max_file_size_mb) : undefined,
+        allowedFileTypes: form.allowed_file_types.trim() || undefined,
       }
 
       const res = await fetch(
@@ -152,6 +163,74 @@ function AssignmentEditModal({ open, onClose, courseId, assignment, onSaved, ser
               style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
           </div>
         </div>
+        {/* File submission settings */}
+        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+            File submission
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                Max files
+                <span style={{ fontWeight: 400, color: "var(--color-fg-muted)", marginLeft: 4 }}>(leave blank = unlimited)</span>
+              </label>
+              <input
+                type="number" min={1} max={20}
+                value={form.max_files}
+                onChange={handle("max_files")}
+                placeholder="e.g. 3"
+                style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                Max size per file (MB)
+                <span style={{ fontWeight: 400, color: "var(--color-fg-muted)", marginLeft: 4 }}>(blank = unlimited)</span>
+              </label>
+              <input
+                type="number" min={1}
+                value={form.max_file_size_mb}
+                onChange={handle("max_file_size_mb")}
+                placeholder="e.g. 10"
+                style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+              Allowed file types
+              <span style={{ fontWeight: 400, color: "var(--color-fg-muted)", marginLeft: 4 }}>(blank = any)</span>
+            </label>
+            <input
+              value={form.allowed_file_types}
+              onChange={handle("allowed_file_types")}
+              placeholder=".pdf,.docx,.zip,.jpg"
+              style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+        </div>
+
+        {/* Late submission toggle */}
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
+          <div
+            onClick={() => setForm(prev => ({ ...prev, allow_late_submission: !prev.allow_late_submission }))}
+            style={{
+              width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+              background: form.allow_late_submission ? "var(--color-primary-600)" : "var(--color-border)",
+              position: "relative", transition: "background .15s", cursor: "pointer",
+            }}
+          >
+            <span style={{
+              position: "absolute", top: 2,
+              left: form.allow_late_submission ? 18 : 2,
+              width: 16, height: 16, borderRadius: "50%",
+              background: "#fff", transition: "left .15s",
+              boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+            }} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 500 }}>Allow late submissions</span>
+        </label>
+
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
           <ButtonSmall variant="ghost" onClick={onClose}>Cancel</ButtonSmall>
           <ButtonSmall onClick={submit} disabled={!form.title || saving}>
@@ -228,30 +307,29 @@ function CourseAssignmentsTab({
             <tr style={{ background: "var(--color-surface-2)", fontSize: 12, color: "var(--color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
               <th style={{ textAlign: "left", padding: "12px 16px" }}>Assignment</th>
               <th style={{ textAlign: "left", padding: "12px 16px" }}>Due</th>
-              <th style={{ textAlign: "right", padding: "12px 16px" }}>Submissions</th>
               <th style={{ width: 80 }}></th>
             </tr>
           </thead>
           <tbody>
             {assignments.map(a => (
-                <tr key={a.id} style={{ borderTop: "1px solid var(--color-border)", cursor: "pointer" }}
-                  onClick={() => router.push(`/teacher/assignments/${a.id}`)}>
-                  <td style={{ padding: "14px 16px" }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
-                    <div style={{ fontSize: 12, color: "var(--color-fg-muted)" }}>Max {a.max_score} pts</div>
-                  </td>
-                  <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--color-fg-muted)" }}>{a.due_date ? formatDateTimeHcm(a.due_date) : "—"}</td>
-                  <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                    <Badge tone={a.submissionCount ? "blue" : "default"}>{a.submissionCount}</Badge>
-                  </td>
-                  <td style={{ padding: "10px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                    <IconButton onClick={() => onEdit(a)} title="Edit"><EditIcon size={16} /></IconButton>
-                    <IconButton onClick={() => { if (deletingId == null) void remove(a) }} title="Delete">
-                      <TrashIcon size={16} />
-                    </IconButton>
-                  </td>
-                </tr>
-              ))}
+              <tr key={a.id} style={{ borderTop: "1px solid var(--color-border)", cursor: "pointer" }}
+                onClick={() => router.push(`/teacher/assignments/${a.id}`)}>
+                <td style={{ padding: "14px 16px" }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
+                  <div style={{ fontSize: 12, color: "var(--color-fg-muted)" }}>Max {a.max_score} pts</div>
+                </td>
+                <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--color-fg-muted)" }}>{a.due_date ? formatDateTimeHcm(a.due_date) : "—"}</td>
+                <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                  <Badge tone={a.submissionCount ? "blue" : "default"}>{a.submissionCount}</Badge>
+                </td>
+                <td style={{ padding: "10px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                  <IconButton onClick={() => onEdit(a)} title="Edit"><EditIcon size={16} /></IconButton>
+                  <IconButton onClick={() => { if (deletingId == null) void remove(a) }} title="Delete">
+                    <TrashIcon size={16} />
+                  </IconButton>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
         {assignments.length === 0 && (

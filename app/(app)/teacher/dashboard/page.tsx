@@ -87,7 +87,7 @@ export default async function TeacherDashboardPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {pendingGrading.map(({ submission, assignment, courseName, studentName }) => (
                   <Link
-                    key={submission.id}
+                    key={`${submission.id}`}
                     href={`/teacher/assignments/${assignment.id}`}
                     style={{
                       display: "block", padding: "10px 12px",
