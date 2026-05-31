@@ -1,5 +1,24 @@
+function parseDate(date: string | Date): Date {
+  if (typeof date === "string") {
+    let datestr = date.trim()
+    // Nếu chuỗi rỗng hoặc lỗi, trả về Date hiện tại
+    if (!datestr) return new Date()
+    // Đảm bảo định dạng có chữ T nếu chứa khoảng trắng phân tách
+    if (datestr.length >= 10 && !datestr.includes("T") && datestr.includes(" ")) {
+      datestr = datestr.replace(" ", "T")
+    }
+    // Nếu chuỗi không chứa múi giờ chỉ định (Z hoặc +xx:xx), tự động coi là giờ GMT+7
+    if (!datestr.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(datestr)) {
+      datestr = datestr.includes("T") ? `${datestr}+07:00` : `${datestr}T00:00:00+07:00`
+    }
+    const parsed = new Date(datestr)
+    return isNaN(parsed.getTime()) ? new Date() : parsed
+  }
+  return date
+}
+
 export function relative(date: string | Date): string {
-  const d = typeof date === "string" ? new Date(date) : date
+  const d = parseDate(date)
   const diff = Date.now() - d.getTime()
   const sec = Math.floor(diff / 1000)
   if (sec < 60) return "just now"
@@ -13,12 +32,12 @@ export function relative(date: string | Date): string {
 }
 
 export function date_(d: string | Date): string {
-  const dt = typeof d === "string" ? new Date(d) : d
+  const dt = parseDate(d)
   return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
 export function time_(d: string | Date): string {
-  const dt = typeof d === "string" ? new Date(d) : d
+  const dt = parseDate(d)
   return dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
 

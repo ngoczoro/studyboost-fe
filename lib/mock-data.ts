@@ -65,8 +65,8 @@ export const notifications: Notification[] = [
   { id: 1, recipient_id: 5, type: "GRADE_RELEASED",       message: "Your Java Basics Quiz has been graded: 8.5/10",  is_read: false, link: "/student/assignments/1", created_at: "2025-05-30T09:05:00Z" },
   { id: 2, recipient_id: 5, type: "NEW_ASSIGNMENT",        message: "New assignment: OOP Project in Introduction to Java", is_read: false, link: "/student/assignments/2", created_at: "2025-05-05T00:00:00Z" },
   { id: 3, recipient_id: 5, type: "NEW_POST",              message: "New discussion post in Introduction to Java",    is_read: true,  link: "/student/posts",         created_at: "2025-03-05T00:00:00Z" },
-  { id: 4, recipient_id: 2, type: "ENROLLMENT_APPROVED",   message: "3 new students enrolled in your courses",        is_read: false, link: "/teacher/students",     created_at: "2025-05-15T00:00:00Z" },
-  { id: 5, recipient_id: 1, type: "ENROLLMENT_APPROVED",   message: "Course 'Spring Boot REST APIs' pending review",   is_read: false, link: "/admin/courses",        created_at: "2025-03-02T00:00:00Z" },
+  { id: 4, recipient_id: 2, type: "ENROLLMENT_UPDATED",   message: "3 new students enrolled in your courses",        is_read: false, link: "/teacher/students",     created_at: "2025-05-15T00:00:00Z" },
+  { id: 5, recipient_id: 1, type: "ENROLLMENT_UPDATED",   message: "Course 'Spring Boot REST APIs' pending review",   is_read: false, link: "/admin/courses",        created_at: "2025-03-02T00:00:00Z" },
 ]
 
 /* ── Lookup helpers ─────────────────────────────── */

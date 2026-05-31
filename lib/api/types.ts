@@ -170,6 +170,16 @@ export interface BackendGradeRequest {
   feedback?: string
 }
 
+export interface BackendNotificationResponse {
+  id: number
+  notificationId?: number | null
+  type: string
+  data?: string | null
+  isRead: boolean
+  readAt?: string | null
+  createdAt?: string | null
+}
+
 export interface BackendGradeResponse {
   id: number
   submissionId: number
@@ -181,6 +191,30 @@ export interface BackendGradeResponse {
   feedback?: string | null
   graderName?: string | null
   gradedAt?: string | null
+}
+
+export interface BackendPostResponse {
+  id: number
+  courseId: number
+  authorId: number
+  authorName?: string | null
+  title: string
+  content: string
+  isPinned: boolean
+  commentCount?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export interface BackendCommentResponse {
+  id: number
+  postId: number
+  authorId: number
+  authorName?: string | null
+  parentId?: number | null
+  content: string
+  createdAt?: string | null
+  replies?: BackendCommentResponse[]
 }
 
 export interface BackendPersonalEventRequest {

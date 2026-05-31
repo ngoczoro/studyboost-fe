@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { parseSessionUserCookie } from "@/lib/auth"
 import { isAccessTokenExpired } from "@/lib/auth-tokens"
 
-const PUBLIC = ["/login", "/register"]
+const PUBLIC = ["/login", "/register", "/forgot-password", "/reset-password"]
 const ROLE_PREFIX: Record<string, string> = {
   admin: "/admin",
   teacher: "/teacher",

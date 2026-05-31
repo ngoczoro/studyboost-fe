@@ -123,3 +123,46 @@ export async function fetchCurrentUser(
 
   return res.json() as Promise<BackendUserResponse>
 }
+
+export async function forgotPasswordWithBackend(email: string): Promise<void> {
+  const res = await backendFetch("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorMessage(res))
+  }
+}
+
+export async function resetPasswordWithBackend(
+  email: string,
+  otp: string,
+  newPassword: string,
+): Promise<void> {
+  const res = await backendFetch("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email, otp, newPassword }),
+  })
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorMessage(res))
+  }
+}
+
+/**
+ * Bước 2 đăng ký: xác thực OTP → BE tạo user → trả về JWT tokens.
+ */
+export async function verifyEmailWithBackend(
+  email: string,
+  otp: string,
+): Promise<BackendAuthResponse> {
+  const res = await backendFetch("/api/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ email, otp }),
+  })
+
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorMessage(res))
+  }
+
+  return res.json() as Promise<BackendAuthResponse>
+}

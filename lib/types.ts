@@ -1,4 +1,4 @@
-export type Role = "admin" | "teacher" | "student"
+export type Role = string
 
 export interface User {
   id: number
@@ -72,6 +72,9 @@ export interface Assignment {
   max_score: number
   due_date?: string
   allow_late_submission: boolean
+  max_files?: number
+  max_file_size_mb?: number
+  allowed_file_types?: string
   created_at: string
   course?: Course
 }
@@ -125,7 +128,7 @@ export interface Comment {
 export interface Notification {
   id: number
   recipient_id: number
-  type: "GRADE_RELEASED" | "NEW_POST" | "NEW_ASSIGNMENT" | "ENROLLMENT_APPROVED"
+  type: "GRADE_RELEASED" | "NEW_POST" | "NEW_ASSIGNMENT" | "ENROLLMENT_UPDATED" | "SUBMISSION_RECEIVED" | "NEW_COMMENT" | "SYSTEM_ALERT"
   message: string
   is_read: boolean
   link?: string
