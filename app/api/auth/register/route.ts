@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-
-import {
-  loginWithBackend,
-  registerWithBackend,
-  fetchCurrentUser,
-  ApiError,
-} from "@/lib/api-client"
-import { toSessionUser } from "@/lib/auth"
-import { setAuthCookies } from "@/lib/auth-cookies"
+import { registerWithBackend, ApiError } from "@/lib/api-client"
 
 export async function POST(req: NextRequest) {
   const { fullName, email, password } = await req.json()
@@ -20,18 +12,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Bước 1: Chỉ gửi OTP — KHÔNG tạo user và KHÔNG auto-login
     await registerWithBackend(email, password, fullName)
-    const auth = await loginWithBackend(email, password)
-    const profile = await fetchCurrentUser(auth.accessToken)
-    const user = toSessionUser(profile)
-
-    await setAuthCookies(auth, user)
-    return NextResponse.json({ user }, { status: 201 })
+    return NextResponse.json(
+      { message: "OTP sent to your email" },
+      { status: 200 },
+    )
   } catch (err) {
     if (err instanceof ApiError) {
       const status = err.status === 400 ? 409 : err.status
-      return NextResponse.json({ error: err.message }, { status: status })
+      return NextResponse.json({ error: err.message }, { status })
     }
-    return NextResponse.json({ error: "Sign up failed" }, { status: 500 })
+    return NextResponse.json({ error: "Registration failed" }, { status: 500 })
   }
 }
