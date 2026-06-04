@@ -1,26 +1,134 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand palette */
+  --color-primary-50:  #f0fdf4;
+  --color-primary-100: #dcfce7;
+  --color-primary-200: #bbf7d0;
+  --color-primary-300: #86efac;
+  --color-primary-400: #4ade80;
+  --color-primary-500: #22c55e;
+  --color-primary-600: #16a34a;
+  --color-primary-700: #15803d;
+
+  /* Neutral surface */
+  --color-bg:       #f9fafb;
+  --color-surface:  #ffffff;
+  --color-border:   #e5e7eb;
+  --color-fg:       #111827;
+  --color-fg-muted: #6b7280;
+
+  /* Typography */
+  --font-sans: 'Inter', 'Geist', system-ui, sans-serif;
+
+  /* Layout */
+  --sidebar-w: 256px;
+  --topbar-h:  64px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* Shadows */
+  --shadow-card:     0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-modal:    0 20px 60px rgba(0,0,0,.18);
+  --shadow-dropdown: 0 8px 24px rgba(0,0,0,.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Reset ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { height: 100%; }
+body {
+  height: 100%;
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Auth shell ─────────────────────────────────── */
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 60% 40%, #dcfce7 0%, #f0fdf4 45%, #fff 100%);
 }
+
+/* ── App shell ──────────────────────────────────── */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+.app-shell__sidebar {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.app-shell__topbar {
+  grid-column: 2;
+  grid-row: 1;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+}
+.app-shell__content {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 32px 36px;
+  background: var(--color-bg);
+}
+
+.teacher-course-card {
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.15s;
+}
+.teacher-course-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Keyframes ──────────────────────────────────── */
+@keyframes sb-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sb-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+@keyframes sb-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+@keyframes sb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes sb-pop-in {
+  from { opacity: 0; transform: scale(.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)  translateY(0); }
+}
+
+.animate-sb-spin    { animation: sb-spin    .6s linear infinite; }
+.animate-sb-pulse   { animation: sb-pulse  1.4s ease-in-out infinite; }
+.animate-sb-fade-in { animation: sb-fade-in .15s ease; }
+.animate-sb-pop-in  { animation: sb-pop-in  .2s cubic-bezier(.34,1.56,.64,1); }

@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Tạo output tối giản cho Docker — chỉ copy .next/standalone + static
+  output: "standalone",
 };
 
 export default nextConfig;
