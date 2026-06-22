@@ -7,12 +7,12 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ roleName: string }> },
 ) {
+  const { roleName } = await params
+  
   const token = await getAccessToken()
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-
-  const { roleName } = await params
   const body = await req.json()
 
   try {
